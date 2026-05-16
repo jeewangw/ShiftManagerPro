@@ -1,0 +1,223 @@
+# Shift Monitor Pro — Full Stack
+
+Node.js + MySQL + Vanilla JS frontend.  
+Multi-branch employee attendance and shift tracking with 3 roles.
+
+---
+
+## Project Structure
+
+```
+shiftmonitor/
+├── .env.example              # Copy → .env and fill in values
+├── .gitignore
+├── package.json
+├── database/
+│   ├── schema.sql            # Run once to create all tables
+│   └── seed.js               # Creates the Super Admin account
+├── backend/
+│   ├── server.js             # Express entry point
+│   ├── config/
+│   │   └── db.js             # MySQL connection pool
+│   ├── middleware/
+│   │   └── auth.js           # JWT verify + role guard
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── branchController.js
+│   │   ├── userController.js
+│   │   ├── attendanceController.js
+│   │   ├── correctionController.js
+│   │   ├── shiftController.js
+│   │   └── dashboardController.js
+│   └── routes/
+│       ├── auth.js
+│       ├── branches.js
+│       ├── users.js
+│       ├── attendance.js
+│       ├── corrections.js
+│       ├── shifts.js
+│       └── dashboard.js
+└── frontend/
+    └── ShiftMonitorPro.html  # Full UI — open in browser
+```
+
+---
+
+## Prerequisites
+
+- Node.js v18+
+- MySQL 8.0+ (or XAMPP)
+
+---
+
+## Local Setup
+
+### 1. Install MySQL
+
+**Option A — MySQL directly:**  
+Download from https://dev.mysql.com/downloads/mysql/
+
+**Option B — XAMPP (easier):**  
+Download from https://www.apachefriends.org → start MySQL from the XAMPP control panel.
+
+### 2. Create the database
+
+Open MySQL Workbench (or phpMyAdmin at http://localhost/phpmyadmin) and run:
+
+```sql
+-- File: database/schema.sql
+-- Either paste into MySQL Workbench and click Run (⚡)
+-- Or run from terminal:
+mysql -u root -p < database/schema.sql
+```
+
+### 3. Install Node dependencies
+
+```bash
+cd shiftmonitor
+npm install
+```
+
+### 4. Configure environment
+
+```bash
+# Windows
+copy .env.example .env
+
+# Mac / Linux
+cp .env.example .env
+```
+
+Open `.env` and set:
+```
+DB_PASSWORD=your_mysql_root_password
+JWT_ACCESS_SECRET=<run: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))">
+JWT_REFRESH_SECRET=<run same command again for a different value>
+```
+
+### 5. Seed the Super Admin
+
+```bash
+node database/seed.js
+```
+
+This prints the admin email and password to the terminal.
+
+### 6. Start the server
+
+```bash
+npm run dev     # development (auto-restart with nodemon)
+# or
+npm start       # production
+```
+
+You should see:
+```
+MySQL pool connected.
+Server running on http://localhost:5000
+```
+
+### 7. Open the frontend
+
+Open `frontend/ShiftMonitorPro.html` in your browser.  
+Or use VS Code's **Live Server** extension (right-click → Open with Live Server).
+
+---
+
+## API Endpoints
+
+### Auth
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/auth/login | Login |
+| POST | /api/auth/refresh | Refresh access token |
+| POST | /api/auth/logout | Logout |
+| POST | /api/auth/change-password | Change password (auth required) |
+
+### Dashboard
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/dashboard | Role-aware summary stats |
+
+### Branches (Super Admin only)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/branches | List all branches |
+| POST | /api/branches | Create branch |
+| PUT | /api/branches/:id | Update branch |
+| DELETE | /api/branches/:id | Deactivate branch |
+
+### Users / Employees
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/users | List employees |
+| POST | /api/users | Create employee |
+| PUT | /api/users/:id | Update employee |
+| DELETE | /api/users/:id | Deactivate employee |
+| GET | /api/users/me | Get own profile |
+| PUT | /api/users/me | Update own profile |
+
+### Attendance
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/attendance | List records (filterable) |
+| GET | /api/attendance/today | Today's records |
+| GET | /api/attendance/my-status | Employee's own clock status |
+| GET | /api/attendance/stats | Aggregate stats |
+| POST | /api/attendance/clock-in | Clock in |
+| POST | /api/attendance/clock-out | Clock out |
+| PUT | /api/attendance/:id | Manual edit (admin) |
+
+### Corrections
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/corrections | List correction requests |
+| POST | /api/corrections | Submit request |
+| PUT | /api/corrections/:id/approve | Approve |
+| PUT | /api/corrections/:id/reject | Reject |
+
+### Shifts
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/shifts | List shifts |
+| POST | /api/shifts | Create shift |
+| PUT | /api/shifts/:id | Update shift |
+| DELETE | /api/shifts/:id | Deactivate shift |
+
+---
+
+## Default Credentials
+
+After running `node database/seed.js`:
+
+| Field | Value |
+|-------|-------|
+| Email | admin@shiftmonitorpro.com |
+| Password | Admin@1234 (or SEED_ADMIN_PASSWORD in .env) |
+
+**Change this password immediately after first login.**
+
+---
+
+## Deployment (when ready)
+
+1. **Database:** PlanetScale, Railway MySQL, or AWS RDS
+2. **Backend:** Railway, Render, or a VPS (set NODE_ENV=production)
+3. **Frontend:** Serve the HTML from the same Node server or Netlify/Vercel
+
+Add this to `server.js` to serve the frontend statically in production:
+```js
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend')));
+```
+
+---
+
+## Security Notes
+
+- JWT access tokens expire in 15 minutes
+- Refresh tokens are rotated on every use
+- Passwords are hashed with bcrypt (cost 12)
+- Rate limiting on all routes (200/15min) and login (20/15min)
+- Branch admins are strictly scoped to their own branch
+- Never commit `.env` to version control
