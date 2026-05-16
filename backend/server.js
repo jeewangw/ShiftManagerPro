@@ -66,6 +66,9 @@ app.use('/api/salary',      require('./routes/salary'));
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', ts: new Date() }));
 
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend')));
+
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: `Route ${req.path} not found.` }));
 
