@@ -9,21 +9,17 @@ const compression  = require('compression');
 const morgan       = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit    = require('express-rate-limit');
+const path         = require('path');
 
 const app = express();
 
-// ── Trust Railway/Render reverse proxy ───────────────────────────────────────
-// Required so express-rate-limit can read the real client IP from the
-// X-Forwarded-For header without throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
-// '1' means trust the first proxy hop (Railway's load balancer).
+// ── Trust Railway reverse proxy ───────────────────────────────────────────────
 app.set('trust proxy', 1);
 
 // ── Security middleware ───────────────────────────────────────────────────────
-app.use(helmet());
+// Disable contentSecurityPolicy so inline scripts in the HTML file work
+app.use(helmet({ contentSecurityPolicy: false }));
 
-// CORS_ORIGIN=* is fine for demos.
-// Note: credentials (cookies) cannot be sent with a wildcard origin, so we
-// disable credentials when using * — the frontend uses Bearer tokens anyway.
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5500';
 app.use(cors({
   origin:      corsOrigin === '*' ? '*' : corsOrigin,
@@ -38,7 +34,7 @@ app.use(cookieParser());
 
 // ── Global rate limiter ───────────────────────────────────────────────────────
 app.use('/api/', rateLimit({
-  windowMs: 15 * 60 * 1000,   // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max:      200,
   standardHeaders: true,
   legacyHeaders:   false,
@@ -52,8 +48,7 @@ app.use('/api/auth/login', rateLimit({
   message: { error: 'Too many login attempts, please try again in 15 minutes.' },
 }));
 
-
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',        require('./routes/authRoute'));
 app.use('/api/branches',    require('./routes/branches'));
 app.use('/api/users',       require('./routes/users'));
@@ -66,11 +61,14 @@ app.use('/api/salary',      require('./routes/salary'));
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', ts: new Date() }));
 
-const path = require('path');
-app.use(express.static(path.join(__dirname, '../frontend')));
+// ── Serve frontend static files ───────────────────────────────────────────────
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath));
 
-// ── 404 handler ───────────────────────────────────────────────────────────────
-app.use((req, res) => res.status(404).json({ error: `Route ${req.path} not found.` }));
+// Serve the HTML for both / and any unmatched route (SPA fallback)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'ShiftMonitorPro.html'));
+});
 
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, _next) => {
