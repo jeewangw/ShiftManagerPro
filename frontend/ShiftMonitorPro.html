@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift Monitor Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0E1A;--bg2:#111827;--bg3:#1A2235;--bg4:#222D42;
+  --border:#2A3548;--border2:#3A4A65;
+  --text:#E8EDF5;--text2:#8A97B0;--text3:#5A6A85;
+  --accent:#3B82F6;--accent2:#60A5FA;
+  --green:#10B981;--green2:#34D399;
+  --amber:#F59E0B;--amber2:#FCD34D;
+  --red:#EF4444;--red2:#F87171;
+  --purple:#8B5CF6;--purple2:#A78BFA;
+  --teal:#14B8A6;--teal2:#2DD4BF;
+  --radius:10px;--radius2:16px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;font-size:14px;line-height:1.5}
+.app{display:flex;height:100vh;overflow:hidden}
+
+.sidebar{width:224px;min-width:224px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
+.logo-mark{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo-text{font-weight:700;font-size:15px}
+.logo-sub{font-size:10px;color:var(--text2);font-family:'IBM Plex Mono',monospace;letter-spacing:1px}
+.sidebar-user{padding:12px 16px;border-bottom:1px solid var(--border)}
+.role-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;margin-bottom:7px}
+.role-super{background:rgba(139,92,246,.15);color:var(--purple2);border:1px solid rgba(139,92,246,.3)}
+.role-branch{background:rgba(59,130,246,.15);color:var(--accent2);border:1px solid rgba(59,130,246,.3)}
+.role-employee{background:rgba(16,185,129,.15);color:var(--green2);border:1px solid rgba(16,185,129,.3)}
+.role-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.user-name{font-weight:600;font-size:13px}
+.user-email{font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.sidebar-nav{flex:1;overflow-y:auto;padding:6px 0}
+.nav-section{padding:10px 16px 3px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);letter-spacing:1px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;transition:all .15s;color:var(--text2);font-size:13px;border-left:2px solid transparent;user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(59,130,246,.1);color:var(--accent2);border-left-color:var(--accent)}
+.nav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-family:'IBM Plex Mono',monospace}
+.sidebar-bottom{padding:14px 16px;border-top:1px solid var(--border)}
+.logout-btn{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-size:12px;font-family:'Sora',sans-serif;transition:all .15s;display:flex;align-items:center;gap:8px}
+.logout-btn:hover{border-color:var(--red);color:var(--red2)}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:54px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0}
+.page-title{font-size:16px;font-weight:600;flex:1}
+.nst-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);border-radius:20px;font-size:11px;color:var(--teal2);font-family:'IBM Plex Mono',monospace}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);animation:pulse 2s infinite}
+.clock-display{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.content{flex:1;overflow-y:auto;padding:24px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;font-size:12px;font-family:'Sora',sans-serif;transition:all .15s;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-primary:hover{background:#2563EB;border-color:#2563EB;color:#fff}
+.btn-success{background:var(--green);border-color:var(--green);color:#fff}
+.btn-success:hover{background:#059669;color:#fff}
+.btn-danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn-danger:hover{background:#DC2626;color:#fff}
+.btn-sm{padding:5px 10px;font-size:11px}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.card-title{font-weight:600;font-size:14px}
+.card-sub{font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;margin-top:2px}
+
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.stat-label{font-size:10px;color:var(--text2);font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;margin-bottom:6px;text-transform:uppercase}
+.stat-value{font-size:26px;font-weight:700;line-height:1}
+.stat-sub{font-size:11px;margin-top:5px;color:var(--text3)}
+
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:10px 12px;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;border-bottom:1px solid var(--border);text-transform:uppercase}
+tbody td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.015)}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-green{background:rgba(16,185,129,.15);color:var(--green2)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red2)}
+.badge-amber{background:rgba(245,158,11,.15);color:var(--amber2)}
+.badge-blue{background:rgba(59,130,246,.15);color:var(--accent2)}
+.badge-gray{background:rgba(138,151,176,.1);color:var(--text2)}
+.badge-purple{background:rgba(139,92,246,.15);color:var(--purple2)}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+.progress-bar{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px}
+
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:rgba(59,130,246,.2);color:var(--accent2)}
+
+/* Clock widget */
+.clock-widget{background:linear-gradient(135deg,#1A2235,#0F1929);border:1px solid var(--border2);border-radius:var(--radius2);padding:28px;text-align:center}
+.clock-big{font-size:48px;font-weight:700;font-family:'IBM Plex Mono',monospace;letter-spacing:-2px;line-height:1}
+.clock-date-str{color:var(--text2);font-size:13px;margin-top:6px;font-family:'IBM Plex Mono',monospace}
+.nst-label{display:inline-block;margin-top:8px;padding:3px 10px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);border-radius:20px;font-size:11px;color:var(--teal2);font-family:'IBM Plex Mono',monospace}
+.clock-status-row{display:inline-flex;align-items:center;gap:8px;margin:14px auto;padding:8px 20px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:20px;font-size:13px}
+
+/* Session pills */
+.sessions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.session-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;font-family:'IBM Plex Mono',monospace}
+.session-pill.open{border-color:var(--green);background:rgba(16,185,129,.08)}
+.session-num{font-size:10px;color:var(--text3);margin-right:2px}
+
+/* Salary notice */
+.salary-notice{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius);padding:12px 16px;font-size:12px;color:var(--amber2);line-height:1.6;margin-bottom:16px}
+.salary-notice strong{color:var(--amber)}
+
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;color:var(--text2);margin-bottom:5px;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px}
+.form-input{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-size:13px;font-family:'Sora',sans-serif;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent)}
+select.form-input{cursor:pointer;appearance:none}
+textarea.form-input{resize:vertical;min-height:80px}
+
+.toast{position:fixed;top:16px;right:16px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 16px;font-size:13px;z-index:9999;animation:slideIn .25s ease;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:300px;line-height:1.5}
+.toast.success{border-left:3px solid var(--green)}
+.toast.error{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--accent)}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:20px}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+
+.login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;overflow-y:auto;padding:20px}
+.login-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:40px;width:100%;max-width:380px}
+.login-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:6px}
+.login-sub{color:var(--text2);font-size:13px;text-align:center;margin-bottom:26px}
+.login-error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:10px 12px;color:var(--red2);font-size:13px;margin-bottom:14px;display:none}
+
+.empty{text-align:center;padding:36px 20px;color:var(--text3)}
+.empty-icon{font-size:34px;margin-bottom:10px}
+.empty-text{font-size:13px}
+
+.timeline{position:relative;padding-left:18px}
+.timeline::before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:1px;background:var(--border)}
+.tl-item{position:relative;margin-bottom:14px}
+.tl-item::before{content:'';position:absolute;left:-17px;top:4px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--bg2)}
+.tl-time{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+.tl-text{font-size:12px;color:var(--text2);margin-top:1px}
+
+.bar-chart{display:flex;align-items:flex-end;gap:5px;height:80px}
+.bar{flex:1;border-radius:4px 4px 0 0;min-width:6px}
+.bar-label{font-size:10px;color:var(--text3);text-align:center;margin-top:3px;font-family:'IBM Plex Mono',monospace}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .grid-2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const API = 'http://localhost:5000/api';
+
+// ============================================================
+// NEPAL TIME  (UTC + 5:45)
+// ============================================================
+function nowNST() {
+  const offset = (5 * 60 + 45) * 60 * 1000;
+  return new Date(Date.now() + offset);
+}
+function fmtNSTTime(d) {
+  const n = d || nowNST();
+  return n.toISOString().slice(11, 19); // HH:MM:SS
+}
+function fmtNSTDate(d) {
+  const n = d || nowNST();
+  return n.toISOString().slice(0, 10);
+}
+function fmtNSTFull(d) {
+  const n = d || nowNST();
+  return n.toISOString().slice(0, 19).replace('T', ' ');
+}
+function fmtNSTDateLong(d) {
+  const n = d ? new Date(new Date(d).getTime() + (5*60+45)*60000) : nowNST();
+  return n.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let S = { user:null, accessToken:null, page:'dashboard', data:{} };
+
+// ============================================================
+// API
+// ============================================================
+async function apiFetch(path, opts={}) {
+  const headers = { 'Content-Type':'application/json', ...opts.headers };
+  if (S.accessToken) headers['Authorization'] = 'Bearer ' + S.accessToken;
+  let res = await fetch(API + path, { ...opts, headers, credentials:'include' });
+  if (res.status === 401 && path !== '/auth/login') {
+    const ok = await tryRefresh();
+    if (ok) { headers['Authorization'] = 'Bearer ' + S.accessToken; res = await fetch(API + path, { ...opts, headers, credentials:'include' }); }
+    else { logout(); return null; }
+  }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Request failed');
+  return json;
+}
+async function tryRefresh() {
+  try {
+    const d = await fetch(API+'/auth/refresh', { method:'POST', credentials:'include' }).then(r=>r.json());
+    if (d.accessToken) { S.accessToken = d.accessToken; return true; }
+  } catch(_) {}
+  return false;
+}
+const apiGet    = p      => apiFetch(p);
+const apiPost   = (p, b) => apiFetch(p, { method:'POST',   body: JSON.stringify(b) });
+const apiPut    = (p, b) => apiFetch(p, { method:'PUT',    body: JSON.stringify(b) });
+const apiDelete = p      => apiFetch(p, { method:'DELETE' });
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function login(email, password) {
+  const d = await apiPost('/auth/login', { email, password });
+  S.accessToken = d.accessToken; S.user = d.user; S.page = 'dashboard';
+  await loadPage(); render();
+}
+function logout() {
+  apiPost('/auth/logout', {}).catch(()=>{});
+  S.user=null; S.accessToken=null; S.data={}; S.page='dashboard'; render();
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+async function nav(page) { S.page=page; await loadPage(); render(); }
+
+async function loadPage() {
+  try {
+    const p = S.page;
+    // Super Admins usually need the branch list for several pages
+    if (S.user.role === 'super_admin') {
+        S.data.branches = await apiGet('/branches');
+    }
+    if (p==='dashboard')   S.data.dashboard   = await apiGet('/dashboard');
+    if (p==='live')        S.data.live        = await apiGet('/attendance/today');
+    if (p==='branches')    S.data.branches    = await apiGet('/branches');
+    if (p==='employees')   S.data.employees   = await apiGet('/users');
+    if (p==='attendance')  { S.data.attendance = await apiGet('/attendance?limit=30'); S.data.attStats = await apiGet('/attendance/stats'); }
+    // Inside loadPage() function
+if (p === 'salary') {
+    if (S.user.role === 'employee') {
+        // Employees call the personal endpoint
+        S.data.salary = await apiGet('/salary/my-salary');
+    } else {
+        // Admins call the general list (which they have permission for)
+        S.data.salary = await apiGet('/salary');
+    }
+}
+    if (p==='corrections') S.data.corrections = await apiGet('/corrections');
+    if (p==='settings')    S.data.shifts      = await apiGet('/shifts');
+    if (p==='profile')     S.data.me          = await apiGet('/users/me');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function initials(n) { return (n||'').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2); }
+function fmtTime(dt) {
+  if (!dt) return '—';
+  // dt is stored as Nepal time in DB, display as-is
+  const s = typeof dt === 'string' ? dt : dt.toISOString();
+  return s.slice(11,16); // HH:MM
+}
+function fmtDateShort(d) {
+  if (!d) return '—';
+  const s = typeof d === 'string' ? d : d.toISOString().slice(0,10);
+  const [y,m,day] = s.slice(0,10).split('-');
+  return `${day}/${m}/${y}`;
+}
+function fmtMins(m) {
+  if (!m && m!==0) return '—';
+  return `${Math.floor(m/60)}h ${m%60}m`;
+}
+function fmtNPR(v) {
+  if (!v && v!==0) return '—';
+  return 'NPR ' + parseFloat(v).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function monthName(m) {
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1] || m;
+}
+function statusBadge(s) {
+  const m={present:'badge-green',absent:'badge-red',late:'badge-amber',half_day:'badge-blue',holiday:'badge-gray',
+           pending:'badge-amber',approved:'badge-green',rejected:'badge-red',clocked_out:'badge-gray'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${(s||'—').replace(/_/g,' ')}</span>`;
+}
+
+// Render session pills for a list of sessions
+function renderSessionPills(sessions) {
+  if (!sessions || !sessions.length) return '<span style="color:var(--text3);font-size:12px">—</span>';
+  return `<div class="sessions-row">${sessions.map((s,i)=>`
+    <div class="session-pill ${!s.clock_out?'open':''}">
+      <span class="session-num">#${i+1}</span>
+      <span>${fmtTime(s.clock_in)}</span>
+      <span style="color:var(--text3)">→</span>
+      <span>${s.clock_out ? fmtTime(s.clock_out) : '<span style="color:var(--green2)">Active</span>'}</span>
+      ${s.duration_min ? `<span style="color:var(--text3);margin-left:2px">${fmtMins(s.duration_min)}</span>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+// ============================================================
+// RENDER ROOT
+// ============================================================
+function render() {
+  document.getElementById('root').innerHTML = !S.user ? renderLogin() : renderApp();
+  attachEvents();
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function renderLogin() {
+  return `
+  <div class="login-screen">
+    <div class="login-box">
+      <div style="text-align:center;margin-bottom:24px">
+        <div class="logo-mark" style="justify-content:center;gap:12px;margin-bottom:6px">
+          <div class="logo-icon" style="width:42px;height:42px;font-size:22px">⚡</div>
+          <div><div class="logo-text" style="font-size:20px">Shift Monitor Pro</div><div class="logo-sub">ENTERPRISE</div></div>
+        </div>
+      </div>
+      <div class="login-title">Welcome back</div>
+      <div class="login-sub">Sign in with your credentials</div>
+      <div class="login-error" id="login-err"></div>
+      <div class="form-group"><label class="form-label">EMAIL</label>
+        <input class="form-input" type="email" id="login-email" placeholder="you@company.com" autocomplete="email"></div>
+      <div class="form-group"><label class="form-label">PASSWORD</label>
+        <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center;padding:11px;font-size:14px">Sign In</button>
+      <div style="margin-top:16px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text3);text-align:center;font-family:'IBM Plex Mono',monospace">
+        All times are recorded in Nepal Standard Time (NST / UTC+5:45)
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// APP SHELL
+// ============================================================
+function renderApp() {
+  const u   = S.user;
+  const nav = getNav(u.role);
+  const pendingCount = (S.data.corrections||[]).filter(c=>c.status==='pending').length;
+
+  return `
+  <div class="app">
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mark"><div class="logo-icon">⚡</div><div><div class="logo-text">Shift Monitor</div><div class="logo-sub">PRO — NST</div></div></div>
+      </div>
+      <div class="sidebar-user">
+        <div class="role-badge role-${u.role==='super_admin'?'super':u.role==='branch_admin'?'branch':'employee'}">
+          <span class="role-dot"></span>${u.role.replace(/_/g,' ')}
+        </div>
+        <div class="user-name">${u.full_name}</div>
+        <div class="user-email">${u.email}</div>
+      </div>
+      <nav class="sidebar-nav">
+        ${nav.map(sec=>`
+          <div class="nav-section">${sec.label}</div>
+          ${sec.items.map(item=>`
+            <div class="nav-item ${S.page===item.id?'active':''}" data-nav="${item.id}">
+              <span class="nav-icon">${item.icon}</span><span>${item.text}</span>
+              ${item.id==='corrections'&&pendingCount>0?`<span class="nav-badge">${pendingCount}</span>`:''}
+            </div>`).join('')}`).join('')}
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="logout-btn" id="logout-btn"><span>🚪</span><span>Sign Out</span></button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <div class="page-title">${getPageTitle()}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="nst-badge">🕐 NST</div>
+          <div style="width:1px;height:20px;background:var(--border)"></div>
+          <div class="status-dot"></div>
+          <span class="clock-display" id="topbar-clock">${fmtNSTTime()}</span>
+        </div>
+      </div>
+      <div class="content" id="content">${renderPage()}</div>
+    </div>
+  </div>
+  ${renderModal()}`;
+}
+
+function getNav(role) {
+  if (role==='super_admin') return [
+    {label:'OVERVIEW', items:[{id:'dashboard',icon:'📊',text:'Dashboard'},{id:'live',icon:'📡',text:'Live Monitor'}]},
+    {label:'MANAGEMENT', items:[{id:'branches',icon:'🏢',text:'Branches'},{id:'employees',icon:'👥',text:'Employees'},{id:'attendance',icon:'🗓',text:'Attendance'}]},
+    {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'Salary'}]},
+    {label:'SYSTEM', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Settings'}]},
+  ];
+  if (role==='branch_admin') return [
+    {label:'OVERVIEW', items:[{id:'dashboard',icon:'📊',text:'My Dashboard'},{id:'live',icon:'📡',text:'Live Monitor'}]},
+    {label:'MY BRANCH', items:[{id:'employees',icon:'👥',text:'Employees'},{id:'attendance',icon:'🗓',text:'Attendance'}]},
+    {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'Salary'}]},
+    {label:'ADMIN', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Shift Settings'}]},
+  ];
+  return [
+    {label:'MY SHIFT', items:[{id:'dashboard',icon:'⏱',text:'Clock In / Out'},{id:'attendance',icon:'🗓',text:'My Attendance'}]},
+    {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'My Salary'}]},
+    {label:'ACCOUNT', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'profile',icon:'👤',text:'My Profile'}]},
+  ];
+}
+function getPageTitle() {
+  return {dashboard:'Dashboard',live:'Live Monitor',branches:'Branch Management',employees:'Employees',
+          attendance:'Attendance',salary:'Salary (NPR)',corrections:'Corrections',settings:'Settings',profile:'My Profile'}[S.page]||'Dashboard';
+}
+
+function renderPage() {
+  const p=S.page, r=S.user.role;
+  if (p==='dashboard') { if(r==='super_admin') return renderSuperDash(); if(r==='branch_admin') return renderBranchDash(); return renderEmployeeDash(); }
+  if (p==='live')        return renderLive();
+  if (p==='branches')    return renderBranches();
+  if (p==='employees')   return renderEmployees();
+  if (p==='attendance')  return renderAttendance();
+  if (p==='salary')      return renderSalary();
+  if (p==='corrections') return renderCorrections();
+  if (p==='settings')    return renderSettings();
+  if (p==='profile')     return renderProfile();
+  return '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Page not found</div></div>';
+}
+
+// ============================================================
+// SUPER ADMIN DASHBOARD
+// ============================================================
+function renderSuperDash() {
+  const d  = S.data.dashboard || {};
+  const bb = d.branch_breakdown || [];
+  const trend = d.weekly_trend || [];
+  const act   = d.recent_activity || [];
+  const ss    = d.salary_summary || {};
+  const maxP  = Math.max(...trend.map(r=>Number(r.total)||1), 1);
+
+  return `
+  <div class="grid grid-4" style="margin-bottom:20px">
+    <div class="stat"><div class="stat-label">Branches</div><div class="stat-value">${d.branches?.active_branches||0}</div><div class="stat-sub">of ${d.branches?.total_branches||0} total</div></div>
+    <div class="stat"><div class="stat-label">Total Employees</div><div class="stat-value">${d.employees?.total_employees||0}</div></div>
+    <div class="stat"><div class="stat-label">Active Now</div><div class="stat-value" style="color:var(--green)">${d.today?.clocked_in_now||0}</div><div class="stat-sub">${d.today?.present_today||0} present today (NST)</div></div>
+    <div class="stat"><div class="stat-label">Monthly Payroll</div><div class="stat-value" style="font-size:18px">${fmtNPR(ss.total_base_salary||0)}</div><div class="stat-sub">Base only · excl. bonus</div></div>
+  </div>
+  <div class="grid grid-2" style="margin-bottom:20px">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Branch Overview</div><div class="card-sub">Today (NST: ${d.nepal_date||fmtNSTDate()})</div></div>
+        <button class="btn btn-sm btn-primary" data-nav="branches">View All</button></div>
+      ${bb.length ? bb.map(b=>`
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px">
+              <span style="font-weight:500">${b.name}</span>
+              <span style="color:var(--text2)">${b.active_now||0}/${b.total_employees||0}</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${b.attendance_pct||0}%;background:var(--accent)"></div></div>
+          </div>
+        </div>`).join('') : '<div class="empty"><div class="empty-text">No branches</div></div>'}
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Weekly Trend</div></div>
+      <div class="bar-chart">
+        ${trend.map(r=>`
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+            <div class="bar" style="height:${Math.round((Number(r.present)/maxP)*70)}px;background:var(--accent)"></div>
+            <div class="bar-label">${r.date?r.date.slice(8):''}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Recent Clock-ins (NST)</div><button class="btn btn-sm" data-nav="live">Live →</button></div>
+    ${act.length ? `<div class="timeline">${act.map(a=>`
+      <div class="tl-item">
+        <div class="tl-time">${fmtTime(a.ts)} NST</div>
+        <div class="tl-text">${a.full_name} clocked in — ${a.branch_name}</div>
+      </div>`).join('')}</div>` : '<div class="empty"><div class="empty-text">No clock-ins today</div></div>'}
+  </div>`;
+}
+
+// ============================================================
+// BRANCH ADMIN DASHBOARD
+// ============================================================
+function renderBranchDash() {
+  const d  = S.data.dashboard || {};
+  const tt = d.team_today || [];
+  const sal= d.salary || {};
+
+  return `
+  <div class="grid grid-4" style="margin-bottom:20px">
+    <div class="stat"><div class="stat-label">Employees</div><div class="stat-value">${d.employees?.total_employees||0}</div></div>
+    <div class="stat"><div class="stat-label">Active Now</div><div class="stat-value" style="color:var(--green)">${d.today?.clocked_in_now||0}</div><div class="stat-sub">NST: ${d.nepal_date||''}</div></div>
+    <div class="stat"><div class="stat-label">Absent</div><div class="stat-value" style="color:var(--red)">${d.today?.absent_today||0}</div></div>
+    <div class="stat"><div class="stat-label">Pending Corrections</div><div class="stat-value" style="color:var(--amber)">${d.pending_corrections||0}</div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <div><div class="card-title">Team Today — ${d.nepal_date||fmtNSTDate()} NST</div></div>
+      <button class="btn btn-sm btn-primary" data-nav="employees">Manage</button>
+    </div>
+    ${tt.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Shift</th><th>Sessions Today</th><th>Total Hours</th><th>Status</th></tr></thead>
+      <tbody>${tt.map(e=>`<tr>
+        <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${initials(e.full_name)}</div>
+          <div><div style="font-weight:500">${e.full_name}</div><div style="font-size:11px;color:var(--text3)">${e.employee_code||''}</div></div>
+        </div></td>
+        <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${e.start_time||'—'}–${e.end_time||''}</td>
+        <td><span class="badge badge-blue">${e.session_count||0} session${e.session_count!==1?'s':''}</span>
+          ${e.current_clock_in?`<span class="badge badge-green" style="margin-left:4px"><span class="badge-dot"></span>Active since ${fmtTime(e.current_clock_in)}</span>`:''}
+        </td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green2)">${fmtMins(e.total_minutes)}</td>
+        <td>${e.status?statusBadge(e.status):'<span class="badge badge-gray">Not in yet</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">No employees</div></div>'}
+  </div>
+  ${sal.records?.length ? `
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">Monthly Salary — ${monthName(sal.month)} ${sal.year}</div></div><button class="btn btn-sm" data-nav="salary">Full Report</button></div>
+    ${renderSalaryNotice()}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Rate/hr (NPR)</th><th>Hours</th><th>Base Salary (NPR)</th></tr></thead>
+      <tbody>${sal.records.map(r=>`<tr>
+        <td>${r.full_name}</td>
+        <td style="font-family:'IBM Plex Mono',monospace">${fmtNPR(r.hourly_rate)}</td>
+        <td style="font-family:'IBM Plex Mono',monospace">${r.total_hours}h</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--green2)">${fmtNPR(r.base_salary)}</td>
+      </tr>`).join('')}
+      <tr style="background:rgba(255,255,255,.03)">
+        <td colspan="2" style="font-weight:600">Total</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-weight:600">${sal.summary?.total_hours||0}h</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--green2)">${fmtNPR(sal.summary?.total_salary||0)}</td>
+      </tr>
+      </tbody>
+    </table></div>
+  </div>` : ''}`;
+}
+
+// ============================================================
+// EMPLOYEE DASHBOARD
+// ============================================================
+// ============================================================
+// EMPLOYEE DASHBOARD (Complete & Dynamic)
+// ============================================================
+function renderEmployeeDash() {
+  const d   = S.data.dashboard || {};
+  const ms  = d.month_stats || {};
+  const rh  = d.recent_history || [];
+  const sal = d.salary || {};
+  const curSal = sal.current;
+
+  // 1. CALCULATE CUMULATIVE DAILY TIME
+  // Sum duration_min of every CLOSED session directly from today_sessions.
+  // We deliberately avoid d.today?.total_minutes because that cached DB column
+  // can be stale (only written on each clock-out) and returns 0 when the
+  // attendance row hasn't been flushed yet.
+  const closedSessionMins = (d.today_sessions || []).reduce((sum, s) => sum + (s.duration_min || 0), 0);
+
+  // Add live elapsed time from the currently-open session (if any)
+  let liveSessionMins = 0;
+  if (d.clocked_in && d.open_session?.clock_in) {
+    liveSessionMins = Math.floor((nowNST().getTime() - new Date(d.open_session.clock_in).getTime()) / 60000);
+  }
+
+  let cumulativeMins = closedSessionMins + liveSessionMins;
+
+  // 2. OVERTIME CALCULATIONS (6 Hours / 360 Minutes threshold)
+  const LIMIT = 360; 
+  const isOvertime = cumulativeMins >= LIMIT;
+  const minsRemaining = Math.max(0, LIMIT - cumulativeMins);
+  const remainingStr = `${Math.floor(minsRemaining / 60)}h ${minsRemaining % 60}m`;
+
+  return `
+  <div class="grid grid-2" style="gap:20px">
+    <div>
+      <!-- DYNAMIC CLOCK WIDGET -->
+      <div class="clock-widget" style="margin-bottom:16px">
+        <div class="clock-big" id="emp-clock">${fmtNSTTime()}</div>
+        <div class="clock-date-str" id="emp-date">${fmtNSTDate()}</div>
+        
+        <div id="ot-countdown" style="margin: 18px 0; height: 50px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          ${isOvertime 
+            ? `<span class="badge badge-amber" style="padding:10px 20px; font-weight:700; border:1px solid var(--amber); box-shadow: 0 0 15px rgba(245,158,11,0.3)">
+                 🔥 DOUBLE PAY ACTIVE
+               </span>` 
+            : `<div>
+                 <div class="stat-label" style="margin-bottom:4px">TIME UNTIL DOUBLE PAY</div>
+                 <div id="ot-remaining" style="font-size:22px; font-weight:600; font-family:'IBM Plex Mono'; color:var(--accent2); line-height:1">
+                   ${remainingStr}
+                 </div>
+                 <div id="ot-worked" style="font-size:10px; color:var(--text3); margin-top:4px">Total worked today: ${fmtMins(cumulativeMins)}</div>
+               </div>`
+          }
+        </div>
+
+        <div class="clock-status-row" id="clock-status-row">
+          ${d.clocked_in 
+            ? `<div class="status-dot"></div><span id="active-session-timer" style="color:var(--green2)">Active: ${fmtMins(Math.floor((nowNST().getTime() - new Date(d.open_session.clock_in).getTime())/60000))}</span>` 
+            : `<span style="color:var(--text2)">Currently Out</span>`}
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:center">
+          ${d.clocked_in
+            ? `<button class="btn btn-danger" id="clockout-btn" style="flex:1;padding:12px;font-size:14px">⏹ Clock Out (NST)</button>`
+            : `<button class="btn btn-success" id="clockin-btn" style="flex:1;padding:12px;font-size:14px">▶ Clock In (NST)</button>`}
+        </div>
+      </div>
+
+      <!-- TODAY'S SESSIONS -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title">Today's Sessions</div>
+          <span class="badge badge-blue">${(d.today_sessions||[]).length} session(s)</span>
+        </div>
+        ${(d.today_sessions||[]).length ? `
+          <div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>In (NST)</th><th>Out (NST)</th><th>Total</th></tr></thead>
+            <tbody>
+              ${(d.today_sessions||[]).map((s,i)=>`<tr>
+                <td style="color:var(--text3)">${i+1}</td>
+                <td style="font-family:'IBM Plex Mono'">${fmtTime(s.clock_in)}</td>
+                <td style="font-family:'IBM Plex Mono'">${s.clock_out ? fmtTime(s.clock_out) : '<span style="color:var(--green2)">Active</span>'}</td>
+                <td style="font-family:'IBM Plex Mono'; color:var(--green2)">${s.duration_min ? fmtMins(s.duration_min) : '—'}</td>
+              </tr>`).join('')}
+              <tr style="background:rgba(255,255,255,.03)">
+                <td colspan="3" style="font-weight:600">Summed Work Today</td>
+                <td id="summed-work-today" style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2)">${fmtMins(cumulativeMins)}</td>
+              </tr>
+            </tbody>
+          </table></div>` : '<div class="empty"><div class="empty-text">No sessions recorded yet today.</div></div>'}
+      </div>
+    </div>
+
+    <div>
+      <!-- MONTH STATS -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div class="card-title">This Month Stats</div></div>
+        <div class="grid grid-2" style="gap:10px">
+          <div class="stat"><div class="stat-label">Total Hours</div><div class="stat-value" style="font-size:20px">${ms.total_hours||0}h</div></div>
+          <div class="stat"><div class="stat-label">Attendance</div><div class="stat-value" style="font-size:20px;color:var(--green)">${ms.attendance_pct||0}%</div></div>
+          <div class="stat"><div class="stat-label">Days Present</div><div class="stat-value" style="font-size:20px">${ms.present_days||0}</div></div>
+          <div class="stat"><div class="stat-label">Absent</div><div class="stat-value" style="font-size:20px;color:var(--red)">${ms.absent||0}</div></div>
+        </div>
+      </div>
+
+      <!-- ATTENDANCE HISTORY -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Attendance History (NST)</div></div>
+        ${rh.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Sessions</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody>${rh.map(r=>`<tr>
+            <td style="font-family:'IBM Plex Mono'; font-size:12px">${fmtDateShort(r.work_date)}</td>
+            <td>${renderSessionPills(r.sessions)}</td>
+            <td style="font-family:'IBM Plex Mono'; color:var(--green2)">${fmtMins(r.total_minutes)}</td>
+            <td>${statusBadge(r.status)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty"><div class="empty-text">No history found.</div></div>'}
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <button class="btn" id="req-correction-btn">✏️ Request Correction</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// LIVE MONITOR
+// ============================================================
+// ============================================================
+// LIVE MONITOR (Updated with 2x Pay Highlighting)
+// ============================================================
+function renderLive() {
+  const rows = (S.data.live || []);
+  const active = rows.filter(r => r.sessions?.some(s => !s.clock_out));
+  const off    = rows.filter(r => !r.sessions?.some(s => !s.clock_out));
+
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+    <div class="nst-badge">📡 LIVE — ${fmtNSTDate()} NST</div>
+    <span style="color:var(--text2);font-size:13px">${active.length} currently clocked in</span>
+  </div>
+  
+  <div class="grid grid-3" style="margin-bottom:20px">
+    ${active.length ? active.map(e => {
+      const openSess = e.sessions?.find(s => !s.clock_out);
+      
+      // Check for 6-hour (360 min) threshold
+      const isOvertime = e.total_minutes >= 360;
+
+      return `
+      <div class="card" style="border-left:3px solid ${isOvertime ? 'var(--amber)' : 'var(--green)'}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div class="avatar">${initials(e.full_name)}</div>
+          <div style="flex:1">
+            <div style="font-weight:500;font-size:13px">${e.full_name}</div>
+            <div style="font-size:11px;color:var(--text3)">${e.branch_name || ''}</div>
+          </div>
+          
+          <!-- Conditional Badge -->
+          ${isOvertime 
+            ? '<span class="badge badge-amber" title="Double Pay Enabled">🔥 2x PAY</span>' 
+            : '<span class="badge badge-green"><span class="badge-dot"></span>Active</span>'
+          }
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:var(--bg3);border-radius:6px;padding:8px">
+            <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">CURRENT IN</div>
+            <div style="font-weight:500;font-family:'IBM Plex Mono',monospace;font-size:13px">${fmtTime(openSess?.clock_in)} NST</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:8px">
+            <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">TOTAL TODAY</div>
+            <div style="font-weight:500;color:${isOvertime ? 'var(--amber2)' : 'var(--green2)'};font-family:'IBM Plex Mono',monospace;font-size:13px">
+              ${fmtMins(e.total_minutes)}
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3)">${e.sessions?.length || 0} session(s) today</div>
+      </div>`;
+    }).join('') : '<div class="card" style="grid-column:1/-1"><div class="empty"><div class="empty-icon">📡</div><div class="empty-text">No one currently clocked in</div></div></div>'}
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Off / Completed</div></div>
+    ${off.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Branch</th><th>Sessions</th><th>Total Hours</th><th>Status</th></tr></thead>
+      <tbody>${off.map(e => {
+        const isOT = e.total_minutes >= 360;
+        return `<tr>
+          <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${initials(e.full_name)}</div>${e.full_name}</div></td>
+          <td style="color:var(--text2)">${e.branch_name || '—'}</td>
+          <td>${renderSessionPills(e.sessions)}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:${isOT ? 'var(--amber2)' : 'var(--green2)'}">
+            ${fmtMins(e.total_minutes)} ${isOT ? '<strong>(2x)</strong>' : ''}
+          </td>
+          <td>${statusBadge(e.status || 'absent')}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>` : '<div class="empty"><div class="empty-text">All employees are clocked in</div></div>'}
+  </div>`;
+}
+
+// ============================================================
+// BRANCHES
+// ============================================================
+function renderBranches() {
+  const branches = S.data.branches||[];
+  return `
+  <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <button class="btn btn-primary" id="add-branch-btn">+ Add Branch</button>
+  </div>
+  ${branches.length ? `<div class="grid grid-2">${branches.map(b=>`
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(59,130,246,.15);display:flex;align-items:center;justify-content:center;font-size:22px">🏢</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:15px">${b.name}</div><div style="font-size:12px;color:var(--text2)">📍 ${b.city}</div></div>
+        <span class="badge badge-green"><span class="badge-dot"></span>Active</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div class="stat" style="padding:12px"><div class="stat-label">Employees</div><div class="stat-value" style="font-size:20px">${b.total_employees||0}</div></div>
+        <div class="stat" style="padding:12px"><div class="stat-label">Active Now</div><div class="stat-value" style="font-size:20px;color:var(--green)">${b.active_now||0}</div></div>
+      </div>
+      <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn btn-sm" data-edit-branch="${b.id}" data-branch='${JSON.stringify({id:b.id,name:b.name,city:b.city,address:b.address||'',phone:b.phone||''})}'>Edit</button>
+        <button class="btn btn-sm btn-danger" data-del-branch="${b.id}">Delete</button>
+      </div>
+    </div>`).join('')}</div>` : '<div class="empty"><div class="empty-icon">🏢</div><div class="empty-text">No branches yet</div></div>'}`;
+}
+
+// ============================================================
+// EMPLOYEES
+// ============================================================
+function renderEmployees() {
+  const emps = S.data.employees||[];
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <span style="color:var(--text2);font-size:13px">${emps.length} employees</span>
+    <button class="btn btn-primary" id="add-emp-btn">+ Add Employee</button>
+  </div>
+  <div class="card">
+    ${emps.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Branch</th><th>Shift</th><th>Rate/hr (NPR)</th><th>Action</th></tr></thead>
+      <tbody>${emps.map(e=>`<tr>
+        <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${initials(e.full_name)}</div>
+          <div><div style="font-weight:500">${e.full_name}</div><div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${e.employee_code||e.id}</div></div>
+        </div></td>
+        <td style="color:var(--text2);font-size:12px">${e.branch_name||'—'}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2)">${e.start_time||'—'}${e.start_time?'–'+e.end_time:''}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtNPR(e.hourly_rate||0)}</td>
+        <td><div style="display:flex;gap:6px">
+          <button class="btn btn-sm" data-edit-emp="${e.id}" data-emp='${JSON.stringify({id:e.id,full_name:e.full_name,email:e.email,phone:e.phone||'',branch_id:e.branch_id,hourly_rate:e.hourly_rate||0})}'>Edit</button>
+          <button class="btn btn-sm btn-danger" data-del-emp="${e.id}">Del</button>
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">No employees yet</div></div>'}
+  </div>`;
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+function renderAttendance() {
+  const rows = (S.data.attendance||{}).data||[];
+  const ms   = S.data.attStats||{};
+  return `
+  <div class="grid grid-3" style="margin-bottom:20px">
+    <div class="stat"><div class="stat-label">Attendance %</div><div class="stat-value">${ms.attendance_pct||0}%</div></div>
+    <div class="stat"><div class="stat-label">Avg Hours/Day</div><div class="stat-value">${ms.avg_minutes?Math.round(ms.avg_minutes/60*10)/10:0}h</div></div>
+    <div class="stat"><div class="stat-label">Total Hours (MTD)</div><div class="stat-value">${ms.total_hours||0}h</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Records (NST dates)</div></div>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" type="date" id="att-from" style="width:140px;padding:6px 10px">
+        <input class="form-input" type="date" id="att-to"   style="width:140px;padding:6px 10px">
+        <button class="btn btn-sm btn-primary" id="att-filter-btn">Filter</button>
+      </div>
+    </div>
+    ${rows.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Date (NST)</th><th>Sessions</th><th>Total Hours</th><th>Status</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td>${r.full_name}<br><span style="font-size:11px;color:var(--text3)">${r.branch_name||''}</span></td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtDateShort(r.work_date)}</td>
+        <td>${renderSessionPills(r.sessions)}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green2)">${fmtMins(r.total_minutes)}</td>
+        <td>${statusBadge(r.status)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty"><div class="empty-text">No records found</div></div>'}
+  </div>`;
+}
+
+// ============================================================
+// SALARY NOTICE (reusable)
+// ============================================================
+function renderSalaryNotice() {
+  return `<div class="salary-notice">
+    <strong>ℹ️ Important notice about salary:</strong><br>
+    This figure represents your <strong>base salary only</strong>, calculated as total logged hours × hourly rate (NPR).
+    It <strong>does not include bonus</strong> of any kind. Bonuses are determined separately based on individual performance,
+    company profit, and other factors. <strong>Please do not compare your salary with others</strong> — compensation is personal and confidential.
+  </div>`;
+}
+
+// ============================================================
+// SALARY PAGE
+// ============================================================
+function renderSalary() {
+  const role = S.user.role;
+  const rows = S.data.salary || [];
+  const nowNP = nowNST();
+  const month = nowNP.getMonth() + 1;
+  const year = nowNP.getFullYear();
+  const branches = S.data.branches || []; // We'll use the branches loaded in loadPage
+
+  // Group by user for admins
+  const grouped = {};
+  rows.forEach(r => {
+    if (!grouped[r.user_id]) grouped[r.user_id] = { full_name: r.full_name, employee_code: r.employee_code, branch_name: r.branch_name, records: [] };
+    grouped[r.user_id].records.push(r);
+  });
+
+  return `
+  ${renderSalaryNotice()}
+  <div class="card" style="margin-bottom: 20px;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      
+      <!-- Branch Selector: Only for Super Admin -->
+      ${role === 'super_admin' ? `
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">BRANCH</label>
+        <select class="form-input" id="sal-branch-select" style="width:200px">
+          <option value="">-- Select Branch --</option>
+          ${branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+        </select>
+      </div>` : ''}
+
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">MONTH</label>
+        <select class="form-input" id="sal-month" style="width:130px">
+          ${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===month?'selected':''}>${monthName(i+1)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">YEAR</label>
+        <input class="form-input" type="number" id="sal-year" value="${year}" style="width:90px">
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="filter-salary-btn">🔍 Filter</button>
+        ${role !== 'employee' ? `
+          <button class="btn btn-primary" id="compute-salary-btn">⚙️ Compute Salary</button>` : ''}
+      </div>
+    </div>
+  </div>
+
+  ${role === 'employee' ? renderMySalaryTable(rows) : renderAdminSalaryTable(grouped)}`;
+}
+
+function renderMySalaryTable(rows) {
+  return `
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">My Salary History</div>
+      <div class="card-sub">Includes 6h+ Daily Double Pay Breakdown</div>
+    </div>
+    ${rows.length ? `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Rate</th>
+              <th>Regular</th>
+              <th>Extra (2x)</th>
+              <th>Total Pay (NPR)</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td style="font-weight:600; color:var(--text)">${monthName(r.month)} ${r.year}</td>
+                <td style="font-family:'IBM Plex Mono'; font-size:12px; color:var(--text2)">${fmtNPR(r.hourly_rate)}</td>
+                <td style="font-family:'IBM Plex Mono'; font-size:13px">${r.regular_hours}h</td>
+                <td style="font-family:'IBM Plex Mono'; font-size:13px; color:var(--amber2)">
+                  ${r.extra_hours > 0 ? `+${r.extra_hours}h` : '<span style="color:var(--text3)">—</span>'}
+                </td>
+                <td style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2); font-size:15px">
+                  ${fmtNPR(r.base_salary)}
+                </td>
+                <td style="font-size:11px; color:var(--text3); font-family:'IBM Plex Mono'">${fmtDateShort(r.computed_at)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>` 
+    : `
+      <div class="empty">
+        <div class="empty-icon">💰</div>
+        <div class="empty-text">No salary records yet.<br>Contact your admin to compute salary.</div>
+      </div>`}
+  </div>`;
+}
+
+function renderAdminSalaryTable(grouped) {
+  const users = Object.values(grouped);
+  if (!users.length) return '<div class="card"><div class="empty">...</div></div>';
+
+  return users.map(u => `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="avatar">${initials(u.full_name)}</div>
+          <div>
+            <div style="font-weight:600">${u.full_name}</div>
+            <div style="font-size:11px;color:var(--text3)">${u.employee_code || ''}</div>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Rate</th>
+              <th>Reg Hrs</th>
+              <th>Extra (2x)</th>
+              <th>Base Salary</th>
+              <th>Total Pay</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${u.records.map(r => `
+              <tr>
+                <td>${monthName(r.month)} ${r.year}</td>
+                <td style="font-family:'IBM Plex Mono'">${fmtNPR(r.hourly_rate)}</td>
+                <td style="font-family:'IBM Plex Mono'">${r.regular_hours}h</td>
+                <td style="font-family:'IBM Plex Mono'; color:var(--amber2)">
+                   ${r.extra_hours > 0 ? `+${r.extra_hours}h` : '—'}
+                </td>
+                <td style="font-family:'IBM Plex Mono'; color:var(--text3)">
+                   ${fmtNPR(r.total_hours * r.hourly_rate)}
+                </td>
+                <td style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2)">
+                   ${fmtNPR(r.base_salary)}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// CORRECTIONS
+// ============================================================
+function renderCorrections() {
+  const rows = S.data.corrections||[];
+  return `
+  <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <button class="btn btn-primary" id="new-correction-btn">+ New Request</button>
+  </div>
+  <div class="card">
+    ${rows.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Date (NST)</th><th>Issue</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>${rows.map(c=>`<tr>
+        <td><strong>${c.full_name}</strong></td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtDateShort(c.work_date)}</td>
+        <td style="color:var(--text2);font-size:12px;max-width:200px">${c.issue_type.replace(/_/g,' ')} — ${(c.description||'').slice(0,50)}${c.description?.length>50?'…':''}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.status==='pending'&&S.user.role!=='employee'?`
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-success" data-approve="${c.id}">Approve</button>
+            <button class="btn btn-sm btn-danger"  data-reject="${c.id}">Reject</button>
+          </div>` : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty"><div class="empty-icon">✏️</div><div class="empty-text">No correction requests</div></div>'}
+  </div>`;
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function renderSettings() {
+  const shifts = S.data.shifts||[];
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Shift Schedules (NST)</div><button class="btn btn-sm btn-primary" id="add-shift-btn">+ Add</button></div>
+      ${shifts.length ? shifts.map(s=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-weight:500;font-size:13px">${s.name}</div>
+            <div style="font-size:12px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${s.start_time} – ${s.end_time} NST · ${s.break_minutes}min break</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" data-edit-shift="${s.id}" data-shift='${JSON.stringify(s)}'>Edit</button>
+            <button class="btn btn-sm btn-danger" data-del-shift="${s.id}">Del</button>
+          </div>
+        </div>`).join('') : '<div class="empty"><div class="empty-text">No shifts configured</div></div>'}
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Change Password</div></div>
+      <div class="form-group"><label class="form-label">CURRENT PASSWORD</label><input class="form-input" type="password" id="pwd-current"></div>
+      <div class="form-group"><label class="form-label">NEW PASSWORD</label><input class="form-input" type="password" id="pwd-new" placeholder="Min 8 characters"></div>
+      <div class="form-group"><label class="form-label">CONFIRM NEW PASSWORD</label><input class="form-input" type="password" id="pwd-confirm"></div>
+      <button class="btn btn-primary" id="change-pwd-btn">Update Password</button>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// PROFILE
+// ============================================================
+function renderProfile() {
+  const me = S.data.me||S.user;
+  return `
+  <div class="grid grid-2">
+    <div class="card" style="text-align:center">
+      <div class="avatar" style="width:72px;height:72px;font-size:24px;margin:0 auto 14px">${initials(me.full_name)}</div>
+      <div style="font-size:18px;font-weight:600">${me.full_name}</div>
+      <div style="color:var(--text2);font-size:13px;margin-top:4px">${me.email}</div>
+      <div style="margin-top:10px">
+        <span class="role-badge role-${me.role==='super_admin'?'super':me.role==='branch_admin'?'branch':'employee'}">${me.role.replace(/_/g,' ')}</span>
+      </div>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;text-align:left">
+        ${[['Employee ID',me.employee_code||me.id],['Role',me.role.replace(/_/g,' ')],['Timezone','NST (UTC+5:45)']].map(([k,v])=>`
+          <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px">
+            <span style="color:var(--text2)">${k}</span>
+            <span style="font-weight:500;font-family:'IBM Plex Mono',monospace;font-size:12px">${v}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Update Profile</div></div>
+      <div class="form-group"><label class="form-label">FULL NAME</label><input class="form-input" id="profile-name" value="${me.full_name||''}"></div>
+      <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="profile-phone" value="${me.phone||''}" placeholder="+977 ..."></div>
+      <button class="btn btn-primary" id="save-profile-btn">Save Changes</button>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+let _modalConfirm = null;
+function renderModal() { return ''; }
+function openModal(title, body, confirmText, onConfirm) {
+  closeModal();
+  _modalConfirm = onConfirm;
+  const div = document.createElement('div');
+  div.id = 'modal-overlay';
+  div.className = 'modal-overlay';
+  div.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">${title}</div>${body}
+      <div class="modal-actions">
+        ${confirmText?`<button class="btn btn-primary" id="modal-confirm">${confirmText}</button>`:''}
+        <button class="btn" id="modal-cancel">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  document.getElementById('modal-confirm')?.addEventListener('click', async () => {
+    try { await _modalConfirm(); closeModal(); } catch(e) { toast(e.message,'error'); }
+  });
+  document.getElementById('modal-cancel')?.addEventListener('click', closeModal);
+  div.addEventListener('click', e => { if(e.target===div) closeModal(); });
+}
+function closeModal() { document.getElementById('modal-overlay')?.remove(); }
+
+// ============================================================
+// EVENTS
+// ============================================================
+function attachEvents() {
+  // Login
+  const lb = document.getElementById('login-btn');
+  if (lb) {
+    lb.addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      const pass  = document.getElementById('login-pass').value;
+      const errEl = document.getElementById('login-err');
+      errEl.style.display='none'; lb.disabled=true; lb.textContent='Signing in…';
+      try { await login(email, pass); }
+      catch(e) { errEl.textContent=e.message; errEl.style.display='block'; lb.disabled=false; lb.textContent='Sign In'; }
+    });
+    document.getElementById('login-pass')?.addEventListener('keydown', e=>{ if(e.key==='Enter') lb.click(); });
+  }
+
+  document.getElementById('logout-btn')?.addEventListener('click', logout);
+  document.querySelectorAll('[data-nav]').forEach(el=>el.addEventListener('click',()=>nav(el.dataset.nav)));
+
+  // Clock In / Out
+  document.getElementById('clockin-btn')?.addEventListener('click', async () => {
+    try { const d = await apiPost('/attendance/clock-in', {}); toast(d.message,'success'); await loadPage(); render(); }
+    catch(e) { toast(e.message,'error'); }
+  });
+  document.getElementById('clockout-btn')?.addEventListener('click', async () => {
+    try { const d = await apiPost('/attendance/clock-out', {}); toast(d.message,'success'); await loadPage(); render(); }
+    catch(e) { toast(e.message,'error'); }
+  });
+
+  // Branches
+  document.getElementById('add-branch-btn')?.addEventListener('click', () => {
+    openModal('Add Branch', `
+      <div class="form-group"><label class="form-label">BRANCH NAME</label><input class="form-input" id="m-bname" placeholder="e.g. Kathmandu Branch"></div>
+      <div class="form-group"><label class="form-label">CITY</label><input class="form-input" id="m-bcity" placeholder="City"></div>
+      <div class="form-group"><label class="form-label">ADDRESS</label><input class="form-input" id="m-baddr"></div>
+      <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="m-bphone"></div>
+    `, 'Create', async () => {
+      await apiPost('/branches', { name:document.getElementById('m-bname').value, city:document.getElementById('m-bcity').value, address:document.getElementById('m-baddr').value, phone:document.getElementById('m-bphone').value });
+      toast('Branch created','success'); await loadPage(); render();
+    });
+  });
+  document.querySelectorAll('[data-edit-branch]').forEach(btn=>btn.addEventListener('click',()=>{
+    const b=JSON.parse(btn.dataset.branch);
+    openModal('Edit Branch', `
+      <div class="form-group"><label class="form-label">BRANCH NAME</label><input class="form-input" id="m-bname" value="${b.name}"></div>
+      <div class="form-group"><label class="form-label">CITY</label><input class="form-input" id="m-bcity" value="${b.city}"></div>
+      <div class="form-group"><label class="form-label">ADDRESS</label><input class="form-input" id="m-baddr" value="${b.address}"></div>
+      <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="m-bphone" value="${b.phone}"></div>
+    `, 'Save', async () => {
+      await apiPut('/branches/'+b.id, { name:document.getElementById('m-bname').value, city:document.getElementById('m-bcity').value, address:document.getElementById('m-baddr').value, phone:document.getElementById('m-bphone').value });
+      toast('Branch updated','success'); await loadPage(); render();
+    });
+  }));
+  document.querySelectorAll('[data-del-branch]').forEach(btn=>btn.addEventListener('click',()=>{
+    openModal('Delete Branch','<p style="color:var(--text2)">This will deactivate the branch.</p>','Delete',async()=>{
+      await apiDelete('/branches/'+btn.dataset.delBranch); toast('Branch removed','info'); await loadPage(); render();
+    });
+  }));
+
+  // Employees
+  document.getElementById('add-emp-btn')?.addEventListener('click', async () => {
+    let branches = S.data.branches||[];
+    if (!branches.length) branches = await apiGet('/branches').catch(()=>[]);
+    const branchOpts = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    openModal('Add Employee', `
+      <div class="form-group"><label class="form-label">FULL NAME</label><input class="form-input" id="m-ename"></div>
+      <div class="form-group"><label class="form-label">EMAIL</label><input class="form-input" id="m-eemail" type="email"></div>
+      <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="m-ephone"></div>
+      <div class="form-group"><label class="form-label">EMPLOYEE CODE</label><input class="form-input" id="m-ecode" placeholder="EMP-001"></div>
+      <div class="form-group"><label class="form-label">HOURLY RATE (NPR)</label><input class="form-input" id="m-erate" type="number" value="0" min="0"></div>
+      ${S.user.role==='super_admin'?`<div class="form-group"><label class="form-label">BRANCH</label><select class="form-input" id="m-ebranch">${branchOpts}</select></div>`:''}
+      <div class="form-group"><label class="form-label">TEMPORARY PASSWORD</label><input class="form-input" id="m-epass" type="password" placeholder="Min 8 chars"></div>
+    `, 'Add Employee', async () => {
+      await apiPost('/users', { full_name:document.getElementById('m-ename').value, email:document.getElementById('m-eemail').value, phone:document.getElementById('m-ephone').value, employee_code:document.getElementById('m-ecode').value, hourly_rate:parseFloat(document.getElementById('m-erate').value)||0, branch_id:document.getElementById('m-ebranch')?.value, password:document.getElementById('m-epass').value, role:'employee' });
+      toast('Employee added','success'); await loadPage(); render();
+    });
+  });
+  document.querySelectorAll('[data-edit-emp]').forEach(btn=>btn.addEventListener('click',()=>{
+    const e=JSON.parse(btn.dataset.emp);
+    openModal('Edit Employee', `
+      <div class="form-group"><label class="form-label">FULL NAME</label><input class="form-input" id="m-ename" value="${e.full_name}"></div>
+      <div class="form-group"><label class="form-label">EMAIL</label><input class="form-input" id="m-eemail" type="email" value="${e.email}"></div>
+      <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="m-ephone" value="${e.phone||''}"></div>
+      <div class="form-group"><label class="form-label">HOURLY RATE (NPR)</label><input class="form-input" id="m-erate" type="number" value="${e.hourly_rate||0}" min="0"></div>
+    `, 'Save', async () => {
+      await apiPut('/users/'+e.id, { full_name:document.getElementById('m-ename').value, email:document.getElementById('m-eemail').value, phone:document.getElementById('m-ephone').value });
+      await apiPut('/salary/'+e.id+'/rate', { hourly_rate: parseFloat(document.getElementById('m-erate').value)||0 });
+      toast('Employee updated','success'); await loadPage(); render();
+    });
+  }));
+  document.querySelectorAll('[data-del-emp]').forEach(btn=>btn.addEventListener('click',()=>{
+    openModal('Deactivate Employee','<p style="color:var(--text2)">Employee will be deactivated. History is preserved.</p>','Deactivate',async()=>{
+      await apiDelete('/users/'+btn.dataset.delEmp); toast('Employee deactivated','info'); await loadPage(); render();
+    });
+  }));
+
+  // Salary
+  // Inside attachEvents() -> Salary Section
+document.getElementById('compute-salary-btn')?.addEventListener('click', async () => {
+    const month = document.getElementById('sal-month')?.value;
+    const year  = document.getElementById('sal-year')?.value;
+    
+    // Logic to determine which branch_id to send
+    let branchId;
+    if (S.user.role === 'super_admin') {
+        branchId = document.getElementById('sal-branch-select')?.value;
+        if (!branchId) {
+            toast('Please select a branch first', 'error');
+            return;
+        }
+    } else {
+        // For Branch Admin, use their assigned branch_id from their user object
+        branchId = S.user.branch_id;
+    }
+
+    try {
+        const d = await apiPost('/salary/compute', { 
+            month: parseInt(month), 
+            year: parseInt(year), 
+            branch_id: parseInt(branchId) 
+        });
+        toast(d.message, 'success');
+        
+        // Refresh data
+        const q = new URLSearchParams({ month, year, branch_id: branchId });
+        S.data.salary = await apiGet('/salary?' + q); 
+        render(); 
+    } catch(e) { 
+        toast(e.message, 'error'); 
+    }
+});
+  document.getElementById('filter-salary-btn')?.addEventListener('click', async () => {
+    const month = document.getElementById('sal-month')?.value;
+    const year  = document.getElementById('sal-year')?.value;
+    const q = new URLSearchParams({ month, year });
+    try { S.data.salary = await apiGet('/salary?'+q); document.getElementById('content').innerHTML = renderPage(); attachEvents(); }
+    catch(e) { toast(e.message,'error'); }
+  });
+
+  // Corrections
+  const openCorrectionModal = () => openModal('Request Attendance Correction', `
+    <div class="form-group"><label class="form-label">DATE (NST)</label><input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}"></div>
+    <div class="form-group"><label class="form-label">ISSUE TYPE</label>
+      <select class="form-input" id="m-ctype">
+        <option value="missed_clock_in">Missed clock-in</option>
+        <option value="missed_clock_out">Missed clock-out</option>
+        <option value="wrong_time">Wrong time recorded</option>
+        <option value="technical_error">Technical error</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">DESCRIPTION</label><textarea class="form-input" id="m-cdesc" placeholder="Describe the issue…"></textarea></div>
+  `, 'Submit', async () => {
+    await apiPost('/corrections', { work_date:document.getElementById('m-cdate').value, issue_type:document.getElementById('m-ctype').value, description:document.getElementById('m-cdesc').value });
+    toast('Correction request submitted','success'); S.data.corrections = await apiGet('/corrections'); render();
+  });
+  document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
+  document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
+  document.querySelectorAll('[data-approve]').forEach(btn=>btn.addEventListener('click',async()=>{
+    try { await apiPut('/corrections/'+btn.dataset.approve+'/approve',{}); toast('Approved','success'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
+  }));
+  document.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click',async()=>{
+    try { await apiPut('/corrections/'+btn.dataset.reject+'/reject',{}); toast('Rejected','info'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
+  }));
+
+  // Attendance filter
+  document.getElementById('att-filter-btn')?.addEventListener('click', async () => {
+    const from=document.getElementById('att-from')?.value, to=document.getElementById('att-to')?.value;
+    const q=new URLSearchParams({limit:'50'}); if(from)q.set('from',from); if(to)q.set('to',to);
+    try { S.data.attendance=await apiGet('/attendance?'+q); document.getElementById('content').innerHTML=renderPage(); attachEvents(); } catch(e){toast(e.message,'error');}
+  });
+
+  // Shifts
+  document.getElementById('add-shift-btn')?.addEventListener('click',()=>openModal('Add Shift (NST)',`
+    <div class="form-group"><label class="form-label">NAME</label><input class="form-input" id="m-sname" placeholder="e.g. Morning Shift"></div>
+    <div class="form-group"><label class="form-label">START (NST)</label><input class="form-input" id="m-sstart" type="time" value="09:00"></div>
+    <div class="form-group"><label class="form-label">END (NST)</label><input class="form-input" id="m-send" type="time" value="17:00"></div>
+    <div class="form-group"><label class="form-label">BREAK (MIN)</label><input class="form-input" id="m-sbreak" type="number" value="30" min="0"></div>
+  `,'Create',async()=>{
+    await apiPost('/shifts',{branch_id:S.user.branch_id,name:document.getElementById('m-sname').value,start_time:document.getElementById('m-sstart').value,end_time:document.getElementById('m-send').value,break_minutes:parseInt(document.getElementById('m-sbreak').value)});
+    toast('Shift created','success'); await loadPage(); render();
+  }));
+  document.querySelectorAll('[data-edit-shift]').forEach(btn=>btn.addEventListener('click',()=>{
+    const s=JSON.parse(btn.dataset.shift);
+    openModal('Edit Shift (NST)',`
+      <div class="form-group"><label class="form-label">NAME</label><input class="form-input" id="m-sname" value="${s.name}"></div>
+      <div class="form-group"><label class="form-label">START (NST)</label><input class="form-input" id="m-sstart" type="time" value="${s.start_time}"></div>
+      <div class="form-group"><label class="form-label">END (NST)</label><input class="form-input" id="m-send" type="time" value="${s.end_time}"></div>
+      <div class="form-group"><label class="form-label">BREAK (MIN)</label><input class="form-input" id="m-sbreak" type="number" value="${s.break_minutes}"></div>
+    `,'Save',async()=>{
+      await apiPut('/shifts/'+s.id,{name:document.getElementById('m-sname').value,start_time:document.getElementById('m-sstart').value,end_time:document.getElementById('m-send').value,break_minutes:parseInt(document.getElementById('m-sbreak').value)});
+      toast('Shift updated','success'); await loadPage(); render();
+    });
+  }));
+  document.querySelectorAll('[data-del-shift]').forEach(btn=>btn.addEventListener('click',async()=>{
+    try{await apiDelete('/shifts/'+btn.dataset.delShift);toast('Shift removed','info');await loadPage();render();}catch(e){toast(e.message,'error');}
+  }));
+
+  // Profile / password
+  document.getElementById('save-profile-btn')?.addEventListener('click',async()=>{
+    try{await apiPut('/users/me',{full_name:document.getElementById('profile-name').value,phone:document.getElementById('profile-phone').value});toast('Profile updated','success');}catch(e){toast(e.message,'error');}
+  });
+  document.getElementById('change-pwd-btn')?.addEventListener('click',async()=>{
+    const np=document.getElementById('pwd-new').value,cp=document.getElementById('pwd-confirm').value;
+    if(np!==cp){toast('Passwords do not match','error');return;}
+    try{await apiPost('/auth/change-password',{current_password:document.getElementById('pwd-current').value,new_password:np});toast('Password changed','success');['pwd-current','pwd-new','pwd-confirm'].forEach(id=>document.getElementById(id).value='');}catch(e){toast(e.message,'error');}
+  });
+}
+
+// ============================================================
+// NST CLOCK TICK
+// ============================================================
+setInterval(() => {
+  const t = fmtNSTTime();
+  const topEl = document.getElementById('topbar-clock');
+  const empEl = document.getElementById('emp-clock');
+
+  if (topEl) topEl.textContent = t;
+  if (empEl) empEl.textContent = t;
+
+  // Update OT countdown every second using in-memory session data.
+  // We never reset to 6h on clock-out because we always base the
+  // calculation on ALL of today's sessions (closed + any open one),
+  // regardless of whether the employee is currently clocked in or not.
+  if (S.user?.role === 'employee' && S.page === 'dashboard') {
+    const d = S.data.dashboard;
+    if (d) {
+      // Sum all CLOSED sessions from the in-memory snapshot
+      const closedMins = (d.today_sessions || []).reduce((sum, s) => sum + (s.duration_min || 0), 0);
+
+      // Add live time from the currently-open session (if any)
+      let liveMins = 0;
+      if (d.clocked_in && d.open_session?.clock_in) {
+        liveMins = Math.floor((nowNST().getTime() - new Date(d.open_session.clock_in).getTime()) / 60000);
+      }
+
+      const totalMins = closedMins + liveMins;
+      const LIMIT     = 360;
+      const remaining = Math.max(0, LIMIT - totalMins);
+      const isOT      = totalMins >= LIMIT;
+
+      // Patch the OT countdown in-place — no full re-render needed
+      const otEl      = document.getElementById('ot-countdown');
+      const remEl     = document.getElementById('ot-remaining');
+      const workedEl  = document.getElementById('ot-worked');
+      const activeEl  = document.getElementById('active-session-timer');
+      const summedEl  = document.getElementById('summed-work-today');
+
+      if (otEl) {
+        if (isOT && !remEl) {
+          // Transition from counting-down to "DOUBLE PAY ACTIVE" — needs a re-render
+          nav('dashboard');
+          return;
+        }
+        if (remEl) {
+          remEl.textContent = `${Math.floor(remaining / 60)}h ${remaining % 60}m`;
+        }
+        if (workedEl) {
+          workedEl.textContent = `Total worked today: ${fmtMins(totalMins)}`;
+        }
+      }
+
+      // Keep the sessions table "Summed Work Today" row in sync
+      if (summedEl) {
+        summedEl.textContent = fmtMins(totalMins);
+      }
+
+      // Also update the "Active: Xh Ym" current-session timer
+      if (activeEl && d.clocked_in && d.open_session?.clock_in) {
+        activeEl.textContent = `Active: ${fmtMins(liveMins)}`;
+      }
+    }
+  }
+}, 1000);
+
+// Auto-refresh live page every 30s
+setInterval(async () => {
+  if (S.user && S.page==='live') {
+    S.data.live = await apiGet('/attendance/today').catch(()=>S.data.live);
+    const c = document.getElementById('content');
+    if (c) { c.innerHTML = renderPage(); attachEvents(); }
+  }
+}, 30000);
+
+// ============================================================
+// BOOT — restore session
+// ============================================================
+(async () => {
+  const ok = await tryRefresh();
+  if (ok) {
+    const me = await apiGet('/users/me').catch(()=>null);
+    if (me) { S.user = me; await loadPage(); }
+  }
+  render();
+})();
+</script>
+</body>
+</html>
