@@ -47,13 +47,13 @@ async function list(req, res) {
   const where  = [];
 
   if (role === 'employee') {
-    where.push('a.user_id = ?'); params.push(callerId);
+    where.push('a.user_id = ?'); params.push(parseInt(callerId));
   } else if (role === 'branch_admin') {
-    where.push('a.branch_id = ?'); params.push(callerBranch);
-    if (user_id) { where.push('a.user_id = ?'); params.push(user_id); }
+    where.push('a.branch_id = ?'); params.push(parseInt(callerBranch));
+    if (user_id) { where.push('a.user_id = ?'); params.push(parseInt(user_id)); }
   } else {
-    if (branch_id) { where.push('a.branch_id = ?'); params.push(branch_id); }
-    if (user_id)   { where.push('a.user_id = ?');   params.push(user_id); }
+    if (branch_id) { where.push('a.branch_id = ?'); params.push(parseInt(branch_id)); }
+    if (user_id)   { where.push('a.user_id = ?');   params.push(parseInt(user_id)); }
   }
 
   if (from)   { where.push('a.work_date >= ?'); params.push(from); }
@@ -74,7 +74,7 @@ async function list(req, res) {
      ${whereClause}
      ORDER BY a.work_date DESC
      LIMIT ? OFFSET ?
-  `, [...params, parseInt(limit), offset]);
+  `, [...params, Number(limit) || 50, Number(offset) || 0]);
 
   // Attach sessions to each row
   for (const row of rows) {
@@ -103,11 +103,11 @@ async function today(req, res) {
   const where    = ['a.work_date = ?'];
 
   if (role === 'employee') {
-    where.push('a.user_id = ?'); params.push(callerId);
+    where.push('a.user_id = ?'); params.push(parseInt(callerId));
   } else if (role === 'branch_admin') {
-    where.push('a.branch_id = ?'); params.push(callerBranch);
+    where.push('a.branch_id = ?'); params.push(parseInt(callerBranch));
   } else if (branch_id) {
-    where.push('a.branch_id = ?'); params.push(branch_id);
+    where.push('a.branch_id = ?'); params.push(parseInt(branch_id));
   }
 
   const [rows] = await db.execute(`
@@ -309,13 +309,13 @@ async function stats(req, res) {
   const where  = ['YEAR(a.work_date) = ?', 'MONTH(a.work_date) = ?'];
 
   if (role === 'employee') {
-    where.push('a.user_id = ?'); params.push(callerId);
+    where.push('a.user_id = ?'); params.push(parseInt(callerId));
   } else if (role === 'branch_admin') {
-    where.push('a.branch_id = ?'); params.push(callerBranch);
-    if (user_id) { where.push('a.user_id = ?'); params.push(user_id); }
+    where.push('a.branch_id = ?'); params.push(parseInt(callerBranch));
+    if (user_id) { where.push('a.user_id = ?'); params.push(parseInt(user_id)); }
   } else {
-    if (branch_id) { where.push('a.branch_id = ?'); params.push(branch_id); }
-    if (user_id)   { where.push('a.user_id = ?');   params.push(user_id); }
+    if (branch_id) { where.push('a.branch_id = ?'); params.push(parseInt(branch_id)); }
+    if (user_id)   { where.push('a.user_id = ?');   params.push(parseInt(user_id)); }
   }
 
   const whereClause = 'WHERE ' + where.join(' AND ');
