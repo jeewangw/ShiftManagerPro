@@ -62,6 +62,9 @@ async function list(req, res) {
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
+  const safeLimit  = parseInt(limit)  || 50;
+  const safeOffset = parseInt(offset) || 0;
+
   const [rows] = await db.execute(`
     SELECT a.*,
            u.full_name, u.employee_code,
@@ -73,8 +76,8 @@ async function list(req, res) {
       LEFT JOIN shifts s ON s.id = a.shift_id
      ${whereClause}
      ORDER BY a.work_date DESC
-     LIMIT ? OFFSET ?
-  `, [...params, Number(limit) || 50, Number(offset) || 0]);
+     LIMIT ${safeLimit} OFFSET ${safeOffset}
+  `, params);
 
   // Attach sessions to each row
   for (const row of rows) {
