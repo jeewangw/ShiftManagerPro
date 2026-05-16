@@ -5,13 +5,17 @@ const db = require('../config/db');
 async function list(req, res) {
   const [rows] = await db.execute(`
     SELECT b.*,
-           COUNT(DISTINCT u.id)                                      AS total_employees,
-           SUM(CASE WHEN a.clock_in IS NOT NULL
-                     AND a.clock_out IS NULL
-                     AND DATE(a.clock_in) = CURDATE() THEN 1 ELSE 0 END) AS active_now
+           COUNT(DISTINCT u.id) AS total_employees,
+           (
+             SELECT COUNT(*)
+               FROM clock_sessions cs
+               JOIN attendance a2 ON a2.id = cs.attendance_id
+              WHERE a2.branch_id = b.id
+                AND a2.work_date = CURDATE()
+                AND cs.clock_out IS NULL
+           ) AS active_now
       FROM branches b
-      LEFT JOIN users     u ON u.branch_id = b.id AND u.role = 'employee' AND u.is_active = 1
-      LEFT JOIN attendance a ON a.user_id  = u.id
+      LEFT JOIN users u ON u.branch_id = b.id AND u.role = 'employee' AND u.is_active = 1
      WHERE b.is_active = 1
      GROUP BY b.id
      ORDER BY b.name
