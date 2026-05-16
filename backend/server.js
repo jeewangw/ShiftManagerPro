@@ -12,12 +12,24 @@ const rateLimit    = require('express-rate-limit');
 
 const app = express();
 
+// ── Trust Railway/Render reverse proxy ───────────────────────────────────────
+// Required so express-rate-limit can read the real client IP from the
+// X-Forwarded-For header without throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+// '1' means trust the first proxy hop (Railway's load balancer).
+app.set('trust proxy', 1);
+
 // ── Security middleware ───────────────────────────────────────────────────────
 app.use(helmet());
+
+// CORS_ORIGIN=* is fine for demos.
+// Note: credentials (cookies) cannot be sent with a wildcard origin, so we
+// disable credentials when using * — the frontend uses Bearer tokens anyway.
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5500';
 app.use(cors({
-  origin:      process.env.CORS_ORIGIN || 'http://localhost:5500',
-  credentials: true,
+  origin:      corsOrigin === '*' ? '*' : corsOrigin,
+  credentials: corsOrigin !== '*',
 }));
+
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
