@@ -52,6 +52,19 @@ app.use('/api/auth/login', rateLimit({
   message: { error: 'Too many login attempts, please try again in 15 minutes.' },
 }));
 
+// TEMPORARY — remove after seeding
+app.get('/api/seed-now', async (req, res) => {
+  const bcrypt = require('bcryptjs');
+  const db = require('./config/db');
+  const hash = await bcrypt.hash('Admin@1234', 12);
+  await db.execute(`
+    INSERT INTO users (full_name, email, role, password_hash, employee_code, hourly_rate)
+    VALUES ('Super Admin', 'admin@shiftmonitorpro.com', 'super_admin', ?, 'SA-001', 0)
+    ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)
+  `, [hash]);
+  res.json({ message: 'Super admin seeded.' });
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',        require('./routes/authRoute'));
 app.use('/api/branches',    require('./routes/branches'));
