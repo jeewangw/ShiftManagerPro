@@ -11,7 +11,7 @@ async function list(req, res) {
 
   const [rows] = await db.execute(`
     SELECT u.id, u.full_name, u.email, u.phone, u.role,
-           u.branch_id, u.employee_code, u.is_active, u.created_at,
+           u.branch_id, u.employee_code, u.hourly_rate, u.is_active, u.created_at,
            b.name AS branch_name,
            s.name AS shift_name, s.start_time, s.end_time
       FROM users u
@@ -31,7 +31,7 @@ async function list(req, res) {
 async function get(req, res) {
   const [[user]] = await db.execute(`
     SELECT u.id, u.full_name, u.email, u.phone, u.role,
-           u.branch_id, u.employee_code, u.is_active, u.created_at,
+           u.branch_id, u.employee_code, u.hourly_rate, u.is_active, u.created_at,
            b.name AS branch_name
       FROM users u
       LEFT JOIN branches b ON b.id = u.branch_id
@@ -82,7 +82,7 @@ async function create(req, res) {
   }
 
   const [[user]] = await db.execute(
-    `SELECT id, full_name, email, role, branch_id, employee_code FROM users WHERE id = ?`,
+    `SELECT id, full_name, email, role, branch_id, employee_code, hourly_rate FROM users WHERE id = ?`,
     [result.insertId]
   );
   res.status(201).json(user);
@@ -126,7 +126,7 @@ async function update(req, res) {
   }
 
   const [[user]] = await db.execute(
-    `SELECT id, full_name, email, phone, role, branch_id, is_active FROM users WHERE id = ?`, [uid]
+    `SELECT id, full_name, email, phone, role, branch_id, is_active, hourly_rate FROM users WHERE id = ?`, [uid]
   );
   res.json(user);
 }
