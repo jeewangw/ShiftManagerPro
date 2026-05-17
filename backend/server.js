@@ -35,7 +35,7 @@ app.use(cookieParser());
 // ── Global rate limiter ───────────────────────────────────────────────────────
 app.use('/api/', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max:      200,
+  max:      500,           // raised from 200 — dashboard left open makes ~1 req/min
   standardHeaders: true,
   legacyHeaders:   false,
   message: { error: 'Too many requests, please try again later.' },

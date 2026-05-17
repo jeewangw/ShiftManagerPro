@@ -207,11 +207,36 @@ let S = { user:null, accessToken:null, page:'dashboard', data:{} };
 // ============================================================
 // API
 // ============================================================
+// Single in-flight refresh promise — prevents multiple concurrent 401s
+// from each firing their own /auth/refresh request simultaneously.
+let _refreshPromise = null;
+
+async function tryRefresh() {
+  if (_refreshPromise) return _refreshPromise; // reuse in-flight refresh
+  _refreshPromise = (async () => {
+    try {
+      const d = await fetch(API+'/auth/refresh', { method:'POST', credentials:'include' }).then(r=>r.json());
+      if (d.accessToken) {
+        S.accessToken = d.accessToken;
+        // Proactively schedule next refresh 60s before token expiry (14 min from now)
+        // so we never hit an expired-token 401 during normal page use.
+        clearTimeout(_refreshTimer);
+        _refreshTimer = setTimeout(tryRefresh, 14 * 60 * 1000);
+        return true;
+      }
+    } catch(_) {}
+    return false;
+  })();
+  try { return await _refreshPromise; } finally { _refreshPromise = null; }
+}
+let _refreshTimer = null;
+
 async function apiFetch(path, opts={}) {
   const headers = { 'Content-Type':'application/json', ...opts.headers };
   if (S.accessToken) headers['Authorization'] = 'Bearer ' + S.accessToken;
   let res = await fetch(API + path, { ...opts, headers, credentials:'include' });
   if (res.status === 401 && path !== '/auth/login') {
+    // One shared refresh attempt — all concurrent 401s share the same promise
     const ok = await tryRefresh();
     if (ok) { headers['Authorization'] = 'Bearer ' + S.accessToken; res = await fetch(API + path, { ...opts, headers, credentials:'include' }); }
     else { logout(); return null; }
@@ -219,13 +244,6 @@ async function apiFetch(path, opts={}) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || 'Request failed');
   return json;
-}
-async function tryRefresh() {
-  try {
-    const d = await fetch(API+'/auth/refresh', { method:'POST', credentials:'include' }).then(r=>r.json());
-    if (d.accessToken) { S.accessToken = d.accessToken; return true; }
-  } catch(_) {}
-  return false;
 }
 const apiGet    = p      => apiFetch(p);
 const apiPost   = (p, b) => apiFetch(p, { method:'POST',   body: JSON.stringify(b) });
@@ -1554,6 +1572,8 @@ setInterval(async () => {
 (async () => {
   const ok = await tryRefresh();
   if (ok) {
+    // Start proactive refresh timer so token never expires during the session
+    _refreshTimer = setTimeout(tryRefresh, 14 * 60 * 1000);
     const me = await apiGet('/users/me').catch(()=>null);
     if (me) { S.user = me; await loadPage(); }
   }
