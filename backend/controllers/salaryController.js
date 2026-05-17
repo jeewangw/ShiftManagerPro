@@ -74,21 +74,19 @@ async function compute(req, res) {
       // OT threshold to reset after a mid-day clock-out/clock-in cycle.
       // We also include any still-open sessions (clock_out IS NULL) via
       // TIMESTAMPDIFF so a compute triggered mid-day is still accurate.
+      // Use attendance.total_minutes — correctly accumulated on each clock-out.
+      // We avoid TIMESTAMPDIFF(clock_in, NOW()) because clock_in is stored in
+      // Nepal time (+05:45) while the DB connection uses UTC, which produces
+      // negative durations for employees clocked in before 05:45 UTC.
+      // For any session still open at compute time, we cap it at 0 extra minutes
+      // (salary should only be computed on completed days).
       const [days] = await db.execute(
-        `SELECT a.work_date,
-                SUM(
-                  TIMESTAMPDIFF(
-                    MINUTE,
-                    cs.clock_in,
-                    COALESCE(cs.clock_out, NOW())
-                  )
-                ) AS day_minutes
-           FROM attendance a
-           JOIN clock_sessions cs ON cs.attendance_id = a.id
-          WHERE a.user_id = ?
-            AND MONTH(a.work_date) = ?
-            AND YEAR(a.work_date)  = ?
-          GROUP BY a.work_date`,
+        `SELECT work_date, total_minutes AS day_minutes
+           FROM attendance
+          WHERE user_id = ?
+            AND MONTH(work_date) = ?
+            AND YEAR(work_date)  = ?
+            AND total_minutes    > 0`,
         [emp.id, month, year]
       );
 

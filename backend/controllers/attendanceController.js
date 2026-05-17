@@ -3,7 +3,6 @@
 const db = require('../config/db');
 
 // ── Nepal time helpers ────────────────────────────────────────────────────────
-// Nepal Standard Time = UTC + 05:45
 const NEPAL_OFFSET_MS = (5 * 60 + 45) * 60 * 1000;
 
 function nowNepal() {
@@ -11,18 +10,15 @@ function nowNepal() {
 }
 
 function nepalDateStr(d) {
-  // Returns "YYYY-MM-DD" in Nepal calendar
   const nd = d || nowNepal();
   return nd.toISOString().slice(0, 10);
 }
 
 function nepalDatetimeStr(d) {
-  // Returns "YYYY-MM-DD HH:MM:SS" in Nepal time — for DB INSERT
   const nd = d || nowNepal();
   return nd.toISOString().replace('T', ' ').slice(0, 19);
 }
 
-// Recompute total_minutes for an attendance row from all closed sessions
 async function recomputeTotal(attendanceId) {
   await db.execute(`
     UPDATE attendance a
@@ -42,7 +38,8 @@ async function list(req, res) {
   const { role, id: callerId, branch_id: callerBranch } = req.user;
   const { branch_id, user_id, from, to, status, page = 1, limit = 50 } = req.query;
 
-  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const safeLimit  = parseInt(limit)  || 50;
+  const safeOffset = ((parseInt(page) || 1) - 1) * safeLimit;
   const params = [];
   const where  = [];
 
@@ -62,9 +59,6 @@ async function list(req, res) {
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
-  const safeLimit  = parseInt(limit)  || 50;
-  const safeOffset = parseInt(offset) || 0;
-
   const [rows] = await db.execute(`
     SELECT a.*,
            u.full_name, u.employee_code,
@@ -79,7 +73,6 @@ async function list(req, res) {
      LIMIT ${safeLimit} OFFSET ${safeOffset}
   `, params);
 
-  // Attach sessions to each row
   for (const row of rows) {
     const [sessions] = await db.execute(
       `SELECT id, clock_in, clock_out, duration_min FROM clock_sessions
@@ -93,7 +86,7 @@ async function list(req, res) {
     `SELECT COUNT(*) AS total FROM attendance a ${whereClause}`, params
   );
 
-  res.json({ data: rows, total, page: parseInt(page), limit: parseInt(limit) });
+  res.json({ data: rows, total, page: parseInt(page) || 1, limit: safeLimit });
 }
 
 // ── GET /api/attendance/today  ────────────────────────────────────────────────
@@ -139,26 +132,28 @@ async function today(req, res) {
 }
 
 // ── POST /api/attendance/clock-in  ───────────────────────────────────────────
-// Allows multiple clock-ins per day.
-// Blocks a new clock-in if there is already an OPEN session (not clocked out).
 async function clockIn(req, res) {
   const userId  = req.user.id;
   const todayNP = nepalDateStr();
   const nowNP   = nepalDatetimeStr();
 
-  // Check for open (not yet clocked-out) session
+  // Check for ANY open session across all dates — not just today.
+  // This prevents the bug where an employee who didn't clock out yesterday
+  // gets auto-clocked-out when a new Nepal day starts.
   const [[openSession]] = await db.execute(`
-    SELECT cs.id FROM clock_sessions cs
+    SELECT cs.id, a.work_date FROM clock_sessions cs
       JOIN attendance a ON a.id = cs.attendance_id
-     WHERE cs.user_id = ? AND a.work_date = ? AND cs.clock_out IS NULL
+     WHERE cs.user_id = ? AND cs.clock_out IS NULL
+     ORDER BY cs.clock_in DESC
      LIMIT 1
-  `, [userId, todayNP]);
+  `, [userId]);
 
   if (openSession) {
-    return res.status(400).json({ error: 'You are already clocked in. Please clock out first.' });
+    return res.status(400).json({
+      error: `You are still clocked in from ${openSession.work_date}. Please clock out first.`
+    });
   }
 
-  // Get user info
   const [[user]] = await db.execute(`
     SELECT u.branch_id, es.shift_id, s.start_time
       FROM users u
@@ -171,7 +166,6 @@ async function clockIn(req, res) {
     return res.status(400).json({ error: 'No branch assigned to your account.' });
   }
 
-  // Determine status (late if >10 min after shift start)
   let status = 'present';
   if (user.start_time) {
     const [sh, sm] = user.start_time.split(':').map(Number);
@@ -180,12 +174,11 @@ async function clockIn(req, res) {
     if (nowNepal() - shiftStartNP > 10 * 60 * 1000) status = 'late';
   }
 
-  // Upsert attendance summary row for today
   await db.execute(`
     INSERT INTO attendance (user_id, branch_id, shift_id, work_date, status)
     VALUES (?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-      status    = IF(status = 'absent', VALUES(status), status),
+      status     = IF(status = 'absent', VALUES(status), status),
       updated_at = NOW()
   `, [userId, user.branch_id, user.shift_id || null, todayNP, status]);
 
@@ -193,7 +186,6 @@ async function clockIn(req, res) {
     `SELECT id FROM attendance WHERE user_id = ? AND work_date = ?`, [userId, todayNP]
   );
 
-  // Insert new clock session
   await db.execute(`
     INSERT INTO clock_sessions (attendance_id, user_id, clock_in)
     VALUES (?, ?, ?)
@@ -219,31 +211,30 @@ async function clockIn(req, res) {
 
 // ── POST /api/attendance/clock-out  ──────────────────────────────────────────
 async function clockOut(req, res) {
-  const userId  = req.user.id;
-  const todayNP = nepalDateStr();
-  const nowNP   = nepalDatetimeStr();
+  const userId = req.user.id;
+  const nowNP  = nepalDatetimeStr();
 
-  // Find the open session
+  // Find the open session across ANY date — not just today.
+  // This lets an employee clock out even if their session started yesterday
+  // (e.g. overnight shift, or they forgot to clock out before midnight NST).
   const [[openSession]] = await db.execute(`
-    SELECT cs.id, cs.attendance_id, cs.clock_in
+    SELECT cs.id, cs.attendance_id, cs.clock_in, a.work_date
       FROM clock_sessions cs
       JOIN attendance a ON a.id = cs.attendance_id
-     WHERE cs.user_id = ? AND a.work_date = ? AND cs.clock_out IS NULL
+     WHERE cs.user_id = ? AND cs.clock_out IS NULL
      ORDER BY cs.clock_in DESC
      LIMIT 1
-  `, [userId, todayNP]);
+  `, [userId]);
 
   if (!openSession) {
     return res.status(400).json({ error: 'You are not currently clocked in.' });
   }
 
-  // Close the session
   await db.execute(
     `UPDATE clock_sessions SET clock_out = ?, updated_at = NOW() WHERE id = ?`,
     [nowNP, openSession.id]
   );
 
-  // Recompute total_minutes on the attendance summary
   await recomputeTotal(openSession.attendance_id);
 
   const [[session]] = await db.execute(
@@ -264,7 +255,7 @@ async function clockOut(req, res) {
     session,
     sessions:      allSessions,
     total_minutes: att.total_minutes,
-    work_date:     todayNP,
+    work_date:     openSession.work_date,
   });
 }
 
@@ -277,7 +268,7 @@ async function myStatus(req, res) {
     `SELECT * FROM attendance WHERE user_id = ? AND work_date = ?`, [userId, todayNP]
   );
 
-  let sessions = [];
+  let sessions    = [];
   let openSession = null;
 
   if (att) {
@@ -287,6 +278,19 @@ async function myStatus(req, res) {
     );
     sessions    = rows;
     openSession = rows.find(s => !s.clock_out) || null;
+  }
+
+  // Also check if there's an open session from a previous day
+  if (!openSession) {
+    const [[prevOpen]] = await db.execute(`
+      SELECT cs.id, cs.clock_in, cs.attendance_id, a.work_date
+        FROM clock_sessions cs
+        JOIN attendance a ON a.id = cs.attendance_id
+       WHERE cs.user_id = ? AND cs.clock_out IS NULL
+       ORDER BY cs.clock_in DESC
+       LIMIT 1
+    `, [userId]);
+    if (prevOpen) openSession = prevOpen;
   }
 
   res.json({
@@ -304,9 +308,9 @@ async function stats(req, res) {
   const { role, id: callerId, branch_id: callerBranch } = req.user;
   const { branch_id, user_id, month, year } = req.query;
 
-  const nowNP        = nowNepal();
-  const targetMonth  = parseInt(month) || (nowNP.getMonth() + 1);
-  const targetYear   = parseInt(year)  || nowNP.getFullYear();
+  const nowNP       = nowNepal();
+  const targetMonth = parseInt(month) || (nowNP.getMonth() + 1);
+  const targetYear  = parseInt(year)  || nowNP.getFullYear();
 
   const params = [targetYear, targetMonth];
   const where  = ['YEAR(a.work_date) = ?', 'MONTH(a.work_date) = ?'];
@@ -325,15 +329,15 @@ async function stats(req, res) {
 
   const [[s]] = await db.execute(`
     SELECT
-      COUNT(*)                                               AS total_days,
-      SUM(status = 'present')                                AS present,
-      SUM(status = 'absent')                                 AS absent,
-      SUM(status = 'late')                                   AS late,
-      SUM(status = 'half_day')                               AS half_day,
-      ROUND(AVG(total_minutes), 0)                           AS avg_minutes,
-      ROUND(SUM(total_minutes) / 60.0, 2)                   AS total_hours,
+      COUNT(*)                                                        AS total_days,
+      SUM(status = 'present')                                         AS present,
+      SUM(status = 'absent')                                          AS absent,
+      SUM(status = 'late')                                            AS late,
+      SUM(status = 'half_day')                                        AS half_day,
+      ROUND(AVG(total_minutes), 0)                                    AS avg_minutes,
+      ROUND(SUM(total_minutes) / 60.0, 2)                            AS total_hours,
       ROUND(SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END)
-            / NULLIF(COUNT(*), 0) * 100, 1)                 AS attendance_pct
+            / NULLIF(COUNT(*), 0) * 100, 1)                          AS attendance_pct
     FROM attendance a
     ${whereClause}
   `, params);
@@ -368,7 +372,7 @@ async function get(req, res) {
   res.json(row);
 }
 
-// ── PUT /api/attendance/:id  (admin manual edit of summary row) ───────────────
+// ── PUT /api/attendance/:id  ──────────────────────────────────────────────────
 async function update(req, res) {
   const { status, notes } = req.body;
   await db.execute(
