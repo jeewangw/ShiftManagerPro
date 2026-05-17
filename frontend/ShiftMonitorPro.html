@@ -231,10 +231,27 @@ async function tryRefresh() {
 }
 let _refreshTimer = null;
 
+// Global 429 backoff flag — when rate limited, pause ALL requests for 60s
+let _rateLimitedUntil = 0;
+
 async function apiFetch(path, opts={}) {
+  // If we're in a rate-limit backoff window, reject immediately — don't hammer the server
+  if (Date.now() < _rateLimitedUntil) {
+    const secsLeft = Math.ceil((_rateLimitedUntil - Date.now()) / 1000);
+    throw new Error(`Rate limited. Please wait ${secsLeft}s before retrying.`);
+  }
+
   const headers = { 'Content-Type':'application/json', ...opts.headers };
   if (S.accessToken) headers['Authorization'] = 'Bearer ' + S.accessToken;
   let res = await fetch(API + path, { ...opts, headers, credentials:'include' });
+
+  // 429 — back off for 60 seconds, stop all further requests
+  if (res.status === 429) {
+    _rateLimitedUntil = Date.now() + 60 * 1000;
+    toast('Too many requests — pausing for 60 seconds.', 'error');
+    throw new Error('Rate limited. Pausing requests for 60 seconds.');
+  }
+
   if (res.status === 401 && path !== '/auth/login') {
     // One shared refresh attempt — all concurrent 401s share the same promise
     const ok = await tryRefresh();
@@ -298,29 +315,33 @@ async function nav(page) {
 async function loadPage() {
   try {
     const p = S.page;
-    // Super Admins usually need the branch list for several pages
-    if (S.user.role === 'super_admin') {
-        S.data.branches = await apiGet('/branches');
-    }
+    const r = S.user?.role;
+
+    // Fetch branches only when actually needed — not on every page load.
+    // Previously this ran on every nav() for super_admin, causing a request
+    // storm that triggered the rate limiter.
+    const needsBranches = (p === 'branches') ||
+                          (p === 'employees' && r === 'super_admin') ||
+                          (p === 'settings'  && r === 'super_admin') ||
+                          (!S.data.branches  && r === 'super_admin'); // first load only
+    if (needsBranches) S.data.branches = await apiGet('/branches');
+
     if (p==='dashboard')   S.data.dashboard   = await apiGet('/dashboard');
     if (p==='live')        S.data.live        = await apiGet('/attendance/today');
-    if (p==='branches')    S.data.branches    = await apiGet('/branches');
     if (p==='employees')   S.data.employees   = await apiGet('/users');
     if (p==='attendance')  { S.data.attendance = await apiGet('/attendance?limit=30'); S.data.attStats = await apiGet('/attendance/stats'); }
-    // Inside loadPage() function
-if (p === 'salary') {
-    if (S.user.role === 'employee') {
-        // Employees call the personal endpoint
-        S.data.salary = await apiGet('/salary/my-salary');
-    } else {
-        // Admins call the general list (which they have permission for)
-        S.data.salary = await apiGet('/salary');
+    if (p==='salary') {
+      S.data.salary = r === 'employee'
+        ? await apiGet('/salary/my-salary')
+        : await apiGet('/salary');
     }
-}
     if (p==='corrections') S.data.corrections = await apiGet('/corrections');
     if (p==='settings')    S.data.shifts      = await apiGet('/shifts');
     if (p==='profile')     S.data.me          = await apiGet('/users/me');
-  } catch(e) { toast(e.message, 'error'); }
+  } catch(e) {
+    // Show error but do NOT re-trigger nav/render — that causes infinite retry loops
+    if (!e.message.includes('Rate limited')) toast(e.message, 'error');
+  }
 }
 
 // ============================================================
@@ -1497,6 +1518,19 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
             <input class="form-input" id="m-cor-min" type="number" min="0" max="59" step="1" placeholder="e.g. 30">
           </div>
         </div>
+        <!-- Erase sessions toggle -->
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" id="m-cor-erase" style="margin-top:2px;width:16px;height:16px;accent-color:var(--amber);flex-shrink:0">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text1)">Erase existing sessions for this day</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">
+                Removes all clock-in/out records for this day and replaces with the total above.
+                Leave unchecked to keep existing sessions alongside the override.
+              </div>
+            </div>
+          </label>
+        </div>
         <div style="font-size:11px;color:var(--text3);margin-top:8px">
           Use when you know total time worked but not exact in/out times.
         </div>
@@ -1508,8 +1542,9 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       const mins      = parseInt(document.getElementById('m-cor-min')?.value)   || 0;
       const totalMins = (hrs * 60) + mins;
 
-      const hasSession = clockIn && clockOut;
-      const hasTotal   = totalMins > 0;
+      const hasSession   = clockIn && clockOut;
+      const hasTotal     = totalMins > 0;
+      const eraseSessions = document.getElementById('m-cor-erase')?.checked || false;
 
       if (hasSession && hasTotal) {
         toast('Please use only one option — session OR total hours, not both.', 'error'); return;
@@ -1521,7 +1556,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       const body = hasSession
         ? { clock_in: clockIn.replace('T',' ') + ':00', clock_out: clockOut.replace('T',' ') + ':00' }
         : hasTotal
-          ? { total_minutes: totalMins }
+          ? { total_minutes: totalMins, erase_sessions: eraseSessions }
           : {};
 
       try {
