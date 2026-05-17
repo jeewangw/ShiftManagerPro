@@ -200,6 +200,21 @@ async function employeeSummary(res, userId) {
     openSession   = rows.find(s => !s.clock_out) || null;
   }
 
+  // Cross-day check: if no open session found in today's rows,
+  // look for an open session from a previous day (e.g. employee
+  // clocked in yesterday at 22:00 and hasn't clocked out yet).
+  if (!openSession) {
+    const [[prevOpen]] = await db.execute(`
+      SELECT cs.id, cs.clock_in, cs.clock_out, cs.duration_min, a.work_date
+        FROM clock_sessions cs
+        JOIN attendance a ON a.id = cs.attendance_id
+       WHERE cs.user_id = ? AND cs.clock_out IS NULL
+       ORDER BY cs.clock_in DESC
+       LIMIT 1
+    `, [userId]);
+    if (prevOpen) openSession = prevOpen;
+  }
+
   const [[monthStats]] = await db.execute(`
     SELECT
       COUNT(*) AS total_days,
