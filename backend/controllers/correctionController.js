@@ -79,7 +79,10 @@ async function create(req, res) {
 async function approve(req, res) {
   const { id: resolverId } = req.user;
   const { id } = req.params;
-  const { clock_in, clock_out } = req.body; // optional manual time fix
+  // Admin can supply any combination of:
+  //   clock_in  / clock_out  — insert a corrected clock session
+  //   total_minutes          — directly override the day total
+  const { clock_in, clock_out, total_minutes } = req.body;
 
   await db.execute(
     `UPDATE correction_requests
@@ -88,34 +91,53 @@ async function approve(req, res) {
     [resolverId, id]
   );
 
-  // If admin also provided corrected times, update the attendance record
   const [[cr]] = await db.execute(
     `SELECT * FROM correction_requests WHERE id = ?`, [id]
   );
 
-  if (cr && (clock_in || clock_out)) {
-    if (cr.attendance_id) {
-      await db.execute(
-        `UPDATE attendance SET
-           clock_in  = COALESCE(?, clock_in),
-           clock_out = COALESCE(?, clock_out)
-         WHERE id = ?`,
-        [clock_in || null, clock_out || null, cr.attendance_id]
-      );
-    } else {
-      // Create new attendance record
-      const [[user]] = await db.execute(
-        `SELECT branch_id FROM users WHERE id = ?`, [cr.user_id]
-      );
-      await db.execute(
-        `INSERT INTO attendance (user_id, branch_id, work_date, clock_in, clock_out, status, notes)
-         VALUES (?,?,?,?,?,'present','Correction approved')
-         ON DUPLICATE KEY UPDATE
-           clock_in  = COALESCE(VALUES(clock_in),  clock_in),
-           clock_out = COALESCE(VALUES(clock_out), clock_out)`,
-        [cr.user_id, user.branch_id, cr.work_date, clock_in || null, clock_out || null]
-      );
-    }
+  if (!cr) {
+    const [[updated]] = await db.execute(`SELECT * FROM correction_requests WHERE id = ?`, [id]);
+    return res.json({ message: 'Correction approved.', correction: updated });
+  }
+
+  // Ensure attendance row exists for the work_date
+  const [[user]] = await db.execute(`SELECT branch_id FROM users WHERE id = ?`, [cr.user_id]);
+  await db.execute(
+    `INSERT INTO attendance (user_id, branch_id, work_date, status, notes)
+     VALUES (?, ?, ?, 'present', 'Correction approved')
+     ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+    [cr.user_id, user.branch_id, cr.work_date]
+  );
+  const [[att]] = await db.execute(
+    `SELECT id FROM attendance WHERE user_id = ? AND work_date = ?`,
+    [cr.user_id, cr.work_date]
+  );
+
+  if (clock_in && clock_out) {
+    // Insert a corrected clock session for the given time range
+    await db.execute(
+      `INSERT INTO clock_sessions (attendance_id, user_id, clock_in, clock_out)
+       VALUES (?, ?, ?, ?)`,
+      [att.id, cr.user_id, clock_in, clock_out]
+    );
+    // Recompute total_minutes from all sessions
+    await db.execute(`
+      UPDATE attendance a
+         SET total_minutes = (
+               SELECT COALESCE(SUM(duration_min), 0)
+                 FROM clock_sessions cs
+                WHERE cs.attendance_id = a.id
+                  AND cs.duration_min IS NOT NULL
+             ),
+             updated_at = NOW()
+       WHERE a.id = ?
+    `, [att.id]);
+  } else if (total_minutes !== undefined && total_minutes !== null && total_minutes !== '') {
+    // Directly override total_minutes for the day
+    await db.execute(
+      `UPDATE attendance SET total_minutes = ?, notes = 'Total manually corrected', updated_at = NOW() WHERE id = ?`,
+      [parseInt(total_minutes), att.id]
+    );
   }
 
   const [[updated]] = await db.execute(

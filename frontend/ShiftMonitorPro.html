@@ -1069,22 +1069,31 @@ function renderAdminSalaryTable(grouped) {
 // ============================================================
 function renderCorrections() {
   const rows = S.data.corrections||[];
+  const isAdmin = S.user.role !== 'employee';
   return `
   <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <button class="btn btn-primary" id="new-correction-btn">+ New Request</button>
   </div>
   <div class="card">
     ${rows.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Employee</th><th>Date (NST)</th><th>Issue</th><th>Status</th><th>Action</th></tr></thead>
+      <thead><tr>
+        <th>Employee</th>
+        <th>Date (NST)</th>
+        <th>Issue</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr></thead>
       <tbody>${rows.map(c=>`<tr>
-        <td><strong>${c.full_name}</strong></td>
+        <td><strong>${c.full_name||'—'}</strong><br><span style="font-size:11px;color:var(--text3)">${c.employee_code||''}</span></td>
         <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtDateShort(c.work_date)}</td>
-        <td style="color:var(--text2);font-size:12px;max-width:200px">${c.issue_type.replace(/_/g,' ')} — ${(c.description||'').slice(0,50)}${c.description?.length>50?'…':''}</td>
-        <td>${statusBadge(c.status)}</td>
-        <td>${c.status==='pending'&&S.user.role!=='employee'?`
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-sm btn-success" data-approve="${c.id}">Approve</button>
-            <button class="btn btn-sm btn-danger"  data-reject="${c.id}">Reject</button>
+        <td><span class="badge badge-blue" style="font-size:10px;text-transform:capitalize">${c.issue_type.replace(/_/g,' ')}</span></td>
+        <td style="color:var(--text2);font-size:12px;max-width:200px">${(c.description||'').slice(0,60)}${(c.description||'').length>60?'…':''}</td>
+        <td>${statusBadge(c.status)}${c.resolved_by_name?`<br><span style="font-size:10px;color:var(--text3)">by ${c.resolved_by_name}</span>`:''}</td>
+        <td>${c.status==='pending'&&isAdmin?`
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-sm btn-success" data-approve="${c.id}" data-date="${c.work_date}" data-emp="${c.full_name}">✓ Approve</button>
+            <button class="btn btn-sm btn-danger"  data-reject="${c.id}">✗ Reject</button>
           </div>` : '—'}</td>
       </tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty"><div class="empty-icon">✏️</div><div class="empty-text">No correction requests</div></div>'}
@@ -1339,8 +1348,82 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
   });
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
-  document.querySelectorAll('[data-approve]').forEach(btn=>btn.addEventListener('click',async()=>{
-    try { await apiPut('/corrections/'+btn.dataset.approve+'/approve',{}); toast('Approved','success'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
+  document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => {
+    const cid  = btn.dataset.approve;
+    const date = btn.dataset.date;
+    const emp  = btn.dataset.emp;
+    openModal(`Approve Correction — ${emp} (${date})`, `
+      <p style="color:var(--text2);font-size:13px;margin-bottom:16px">
+        Choose how to fix this employee's attendance for <strong>${date}</strong>.
+        All fields are optional — fill only what needs correcting.
+      </p>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:10px">OPTION 1 — ADD A CORRECTED SESSION</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">CLOCK IN (NST)</label>
+            <input class="form-input" id="m-cor-in"  type="datetime-local" style="font-family:'IBM Plex Mono'">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">CLOCK OUT (NST)</label>
+            <input class="form-input" id="m-cor-out" type="datetime-local" style="font-family:'IBM Plex Mono'">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">
+          A new clock session will be inserted for this time range and the day total will be recalculated.
+        </div>
+      </div>
+
+      <div style="background:var(--surface2);border-radius:8px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.08em;margin-bottom:10px">OPTION 2 — SET TOTAL HOURS DIRECTLY</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">HOURS WORKED</label>
+            <input class="form-input" id="m-cor-hrs" type="number" min="0" max="24" step="0.25" placeholder="e.g. 7.5">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">MINUTES WORKED</label>
+            <input class="form-input" id="m-cor-min" type="number" min="0" max="59" placeholder="e.g. 30">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">
+          Overrides the day's total directly. Use when you know total hours but not exact in/out times.
+        </div>
+      </div>
+    `, 'Approve & Apply Fix', async () => {
+      const clockIn  = document.getElementById('m-cor-in')?.value;
+      const clockOut = document.getElementById('m-cor-out')?.value;
+      const hrs      = parseFloat(document.getElementById('m-cor-hrs')?.value) || 0;
+      const mins     = parseInt(document.getElementById('m-cor-min')?.value)   || 0;
+      const totalMins = (hrs * 60) + mins;
+
+      // Validate: can't use both options simultaneously
+      const hasSession = clockIn && clockOut;
+      const hasTotal   = totalMins > 0;
+      if (hasSession && hasTotal) {
+        toast('Please use only one option — either a session OR total hours, not both.', 'error');
+        return;
+      }
+      // Validate session: clock-out must be after clock-in
+      if (hasSession && new Date(clockOut) <= new Date(clockIn)) {
+        toast('Clock-out must be after clock-in.', 'error');
+        return;
+      }
+
+      const body = hasSession
+        ? { clock_in: clockIn.replace('T', ' ') + ':00', clock_out: clockOut.replace('T', ' ') + ':00' }
+        : hasTotal
+          ? { total_minutes: totalMins }
+          : {};  // approve with no time fix (just marks as approved)
+
+      try {
+        await apiPut('/corrections/' + cid + '/approve', body);
+        toast('Correction approved' + (hasSession || hasTotal ? ' and time updated.' : '.'), 'success');
+        S.data.corrections = await apiGet('/corrections');
+        render();
+      } catch(e) { toast(e.message, 'error'); }
+    });
   }));
   document.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click',async()=>{
     try { await apiPut('/corrections/'+btn.dataset.reject+'/reject',{}); toast('Rejected','info'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
