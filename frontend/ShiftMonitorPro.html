@@ -1497,19 +1497,6 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
             <input class="form-input" id="m-cor-min" type="number" min="0" max="59" step="1" placeholder="e.g. 30">
           </div>
         </div>
-        <!-- Erase sessions toggle -->
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-            <input type="checkbox" id="m-cor-erase" style="margin-top:2px;width:16px;height:16px;accent-color:var(--amber);flex-shrink:0">
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--text1)">Erase existing sessions for this day</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">
-                Removes all clock-in/out records for this day and replaces with the total above.
-                Leave unchecked to keep existing sessions alongside the override.
-              </div>
-            </div>
-          </label>
-        </div>
         <div style="font-size:11px;color:var(--text3);margin-top:8px">
           Use when you know total time worked but not exact in/out times.
         </div>
@@ -1521,9 +1508,8 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       const mins      = parseInt(document.getElementById('m-cor-min')?.value)   || 0;
       const totalMins = (hrs * 60) + mins;
 
-      const hasSession   = clockIn && clockOut;
-      const hasTotal     = totalMins > 0;
-      const eraseSessions = document.getElementById('m-cor-erase')?.checked || false;
+      const hasSession = clockIn && clockOut;
+      const hasTotal   = totalMins > 0;
 
       if (hasSession && hasTotal) {
         toast('Please use only one option — session OR total hours, not both.', 'error'); return;
@@ -1535,7 +1521,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       const body = hasSession
         ? { clock_in: clockIn.replace('T',' ') + ':00', clock_out: clockOut.replace('T',' ') + ':00' }
         : hasTotal
-          ? { total_minutes: totalMins, erase_sessions: eraseSessions }
+          ? { total_minutes: totalMins }
           : {};
 
       try {
