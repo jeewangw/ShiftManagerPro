@@ -47,14 +47,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Sora',
 .logout-btn{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-size:12px;font-family:'Sora',sans-serif;transition:all .15s;display:flex;align-items:center;gap:8px}
 .logout-btn:hover{border-color:var(--red);color:var(--red2)}
 
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;overflow-y:auto;min-width:0;-webkit-overflow-scrolling:touch}
 .topbar{height:54px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0}
 .page-title{font-size:16px;font-weight:600;flex:1}
 .nst-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);border-radius:20px;font-size:11px;color:var(--teal2);font-family:'IBM Plex Mono',monospace}
 .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);animation:pulse 2s infinite}
 .clock-display{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.content{flex:1;overflow-y:auto;padding:24px}
+.content{flex:1;overflow-y:auto;padding:24px;-webkit-overflow-scrolling:touch}
 
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer;font-size:12px;font-family:'Sora',sans-serif;transition:all .15s;font-weight:500;white-space:nowrap}
 .btn:hover{border-color:var(--accent);color:var(--accent2)}
@@ -259,7 +259,23 @@ function logout() {
 // ============================================================
 // NAVIGATION
 // ============================================================
-async function nav(page) { S.page=page; await loadPage(); render(); }
+async function nav(page) {
+  const samePageRefresh = (page === S.page);
+  S.page = page;
+  await loadPage();
+  const existing = document.getElementById('content');
+  if (existing) {
+    const scroller = document.querySelector('.content');
+    // Only preserve scroll when refreshing the same page (e.g. after clock-in/out)
+    // Scroll to top when the user navigates to a different page
+    const scrollY = (samePageRefresh && scroller) ? scroller.scrollTop : 0;
+    existing.innerHTML = renderPage();
+    if (scroller) scroller.scrollTop = scrollY;
+    attachEvents();
+  } else {
+    render();
+  }
+}
 
 async function loadPage() {
   try {
@@ -339,8 +355,26 @@ function renderSessionPills(sessions) {
 // RENDER ROOT
 // ============================================================
 function render() {
-  document.getElementById('root').innerHTML = !S.user ? renderLogin() : renderApp();
-  attachEvents();
+  if (!S.user) {
+    document.getElementById('root').innerHTML = renderLogin();
+    attachEvents();
+    return;
+  }
+  const existing = document.getElementById('content');
+  if (existing) {
+    // App shell already rendered — only swap the content area
+    // Save scroll position so mobile users don't get jumped to top
+    const scroller = document.querySelector('.content');
+    const scrollY = scroller ? scroller.scrollTop : 0;
+    existing.innerHTML = renderPage();
+    // Restore scroll position after DOM update
+    if (scroller) scroller.scrollTop = scrollY;
+    attachEvents();
+  } else {
+    // First render — build the full shell
+    document.getElementById('root').innerHTML = renderApp();
+    attachEvents();
+  }
 }
 
 // ============================================================
