@@ -82,7 +82,7 @@ async function approve(req, res) {
   // Admin can supply any combination of:
   //   clock_in  / clock_out  — insert a corrected clock session
   //   total_minutes          — directly override the day total
-  const { clock_in, clock_out, total_minutes } = req.body;
+  const { clock_in, clock_out, total_minutes, erase_sessions } = req.body;
 
   await db.execute(
     `UPDATE correction_requests
@@ -133,6 +133,13 @@ async function approve(req, res) {
        WHERE a.id = ?
     `, [att.id]);
   } else if (total_minutes !== undefined && total_minutes !== null && total_minutes !== '') {
+    // If admin chose to erase existing sessions first, delete all clock_sessions
+    // for this attendance row so they don't conflict with the manual override
+    if (erase_sessions) {
+      await db.execute(
+        `DELETE FROM clock_sessions WHERE attendance_id = ?`, [att.id]
+      );
+    }
     // Directly override total_minutes for the day
     await db.execute(
       `UPDATE attendance SET total_minutes = ?, notes = 'Total manually corrected', updated_at = NOW() WHERE id = ?`,
