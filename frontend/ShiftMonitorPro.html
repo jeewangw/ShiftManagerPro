@@ -1349,9 +1349,34 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
 
   // Corrections
   const openCorrectionModal = () => openModal('Request Attendance Correction', `
-    <div class="form-group"><label class="form-label">DATE (NST)</label><input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}"></div>
-    <div class="form-group"><label class="form-label">ISSUE TYPE</label>
-      <select class="form-input" id="m-ctype">
+    <div class="form-group">
+      <label class="form-label">DATE (NST)</label>
+      <input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ISSUE TYPE</label>
+      <select class="form-input" id="m-ctype" onchange="
+        const t = this.value;
+        const timeFields  = document.getElementById('m-c-timefields');
+        const inField     = document.getElementById('m-c-infield');
+        const outField    = document.getElementById('m-c-outfield');
+        const descField   = document.getElementById('m-c-descfield');
+        const inLabel     = document.getElementById('m-c-inlabel');
+        if (t === 'missed_clock_in') {
+          timeFields.style.display='block'; inField.style.display='block';
+          outField.style.display='none'; descField.style.display='none';
+          inLabel.textContent='WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)';
+        } else if (t === 'missed_clock_out') {
+          timeFields.style.display='block'; inField.style.display='none';
+          outField.style.display='block'; descField.style.display='none';
+        } else if (t === 'wrong_time') {
+          timeFields.style.display='block'; inField.style.display='block';
+          outField.style.display='block'; descField.style.display='none';
+          inLabel.textContent='CORRECT CLOCK IN TIME (NST)';
+        } else {
+          timeFields.style.display='none'; descField.style.display='block';
+        }
+      ">
         <option value="missed_clock_in">Missed clock-in</option>
         <option value="missed_clock_out">Missed clock-out</option>
         <option value="wrong_time">Wrong time recorded</option>
@@ -1359,9 +1384,50 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
         <option value="other">Other</option>
       </select>
     </div>
-    <div class="form-group"><label class="form-label">DESCRIPTION</label><textarea class="form-input" id="m-cdesc" placeholder="Describe the issue…"></textarea></div>
+
+    <!-- TIME INPUT FIELDS (shown for time-related issues) -->
+    <div id="m-c-timefields" style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:12px">
+      <div id="m-c-infield" class="form-group" style="margin-bottom:10px">
+        <label class="form-label" id="m-c-inlabel">WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)</label>
+        <input class="form-input" id="m-c-clockin" type="datetime-local" style="font-family:'IBM Plex Mono'">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Leave blank if not applicable</div>
+      </div>
+      <div id="m-c-outfield" class="form-group" style="margin:0;display:none">
+        <label class="form-label">WHAT TIME DID YOU ACTUALLY CLOCK OUT? (NST)</label>
+        <input class="form-input" id="m-c-clockout" type="datetime-local" style="font-family:'IBM Plex Mono'">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Leave blank if not applicable</div>
+      </div>
+    </div>
+
+    <!-- TEXT DESCRIPTION (shown for other/technical issues) -->
+    <div id="m-c-descfield" class="form-group" style="display:none">
+      <label class="form-label">DESCRIPTION</label>
+      <textarea class="form-input" id="m-cdesc" placeholder="Describe the issue…" rows="3"></textarea>
+    </div>
+
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">
+      Your request will be reviewed by an admin who can apply the fix directly.
+    </div>
   `, 'Submit', async () => {
-    await apiPost('/corrections', { work_date:document.getElementById('m-cdate').value, issue_type:document.getElementById('m-ctype').value, description:document.getElementById('m-cdesc').value });
+    const issueType = document.getElementById('m-ctype').value;
+    const clockIn   = document.getElementById('m-c-clockin')?.value;
+    const clockOut  = document.getElementById('m-c-clockout')?.value;
+    const freeText  = document.getElementById('m-cdesc')?.value || '';
+    const workDate  = document.getElementById('m-cdate').value;
+
+    // Build a meaningful description from the time inputs
+    let description = freeText;
+    if (['missed_clock_in','missed_clock_out','wrong_time'].includes(issueType)) {
+      const parts = [];
+      if (clockIn)  parts.push('Requested clock-in: ' + clockIn.replace('T',' '));
+      if (clockOut) parts.push('Requested clock-out: ' + clockOut.replace('T',' '));
+      if (!parts.length) { toast('Please enter at least one time value.','error'); return; }
+      description = parts.join(' | ');
+    } else {
+      if (!freeText.trim()) { toast('Please enter a description.','error'); return; }
+    }
+
+    await apiPost('/corrections', { work_date: workDate, issue_type: issueType, description });
     toast('Correction request submitted','success'); S.data.corrections = await apiGet('/corrections'); render();
   });
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
