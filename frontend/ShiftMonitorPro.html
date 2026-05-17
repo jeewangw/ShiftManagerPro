@@ -1233,8 +1233,7 @@ function attachEvents() {
       <div class="form-group"><label class="form-label">PHONE</label><input class="form-input" id="m-ephone" value="${e.phone||''}"></div>
       <div class="form-group"><label class="form-label">HOURLY RATE (NPR)</label><input class="form-input" id="m-erate" type="number" value="${e.hourly_rate||0}" min="0"></div>
     `, 'Save', async () => {
-      await apiPut('/users/'+e.id, { full_name:document.getElementById('m-ename').value, email:document.getElementById('m-eemail').value, phone:document.getElementById('m-ephone').value });
-      await apiPut('/salary/'+e.id+'/rate', { hourly_rate: parseFloat(document.getElementById('m-erate').value)||0 });
+      await apiPut('/users/'+e.id, { full_name:document.getElementById('m-ename').value, email:document.getElementById('m-eemail').value, phone:document.getElementById('m-ephone').value, hourly_rate: parseFloat(document.getElementById('m-erate').value)||0 });
       toast('Employee updated','success'); await loadPage(); render();
     });
   }));

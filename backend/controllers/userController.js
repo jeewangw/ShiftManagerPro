@@ -49,7 +49,7 @@ async function get(req, res) {
 
 // POST /api/users  — create employee or branch_admin
 async function create(req, res) {
-  const { full_name, email, phone, password, role, branch_id, employee_code, shift_id } = req.body;
+  const { full_name, email, phone, password, role, branch_id, employee_code, shift_id, hourly_rate } = req.body;
 
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ error: 'full_name, email, password, role are required.' });
@@ -68,9 +68,9 @@ async function create(req, res) {
   const hash = await bcrypt.hash(password, 12);
 
   const [result] = await db.execute(
-    `INSERT INTO users (full_name, email, phone, password_hash, role, branch_id, employee_code)
-     VALUES (?,?,?,?,?,?,?)`,
-    [full_name, email.toLowerCase().trim(), phone || null, hash, role, targetBranch, employee_code || null]
+    `INSERT INTO users (full_name, email, phone, password_hash, role, branch_id, employee_code, hourly_rate)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [full_name, email.toLowerCase().trim(), phone || null, hash, role, targetBranch, employee_code || null, parseFloat(hourly_rate) || 0]
   );
 
   // Assign shift if provided
@@ -90,7 +90,7 @@ async function create(req, res) {
 
 // PUT /api/users/:id
 async function update(req, res) {
-  const { full_name, email, phone, is_active, shift_id } = req.body;
+  const { full_name, email, phone, is_active, shift_id, hourly_rate } = req.body;
   const uid = req.params.id;
 
   // Scope check
@@ -102,13 +102,15 @@ async function update(req, res) {
 
   await db.execute(
     `UPDATE users SET
-       full_name = COALESCE(?, full_name),
-       email     = COALESCE(?, email),
-       phone     = COALESCE(?, phone),
-       is_active = COALESCE(?, is_active)
+       full_name   = COALESCE(?, full_name),
+       email       = COALESCE(?, email),
+       phone       = COALESCE(?, phone),
+       is_active   = COALESCE(?, is_active),
+       hourly_rate = COALESCE(?, hourly_rate)
      WHERE id = ?`,
     [full_name || null, email ? email.toLowerCase().trim() : null, phone || null,
-     is_active !== undefined ? is_active : null, uid]
+     is_active !== undefined ? is_active : null,
+     hourly_rate !== undefined ? parseFloat(hourly_rate) : null, uid]
   );
 
   // Update shift assignment if requested
