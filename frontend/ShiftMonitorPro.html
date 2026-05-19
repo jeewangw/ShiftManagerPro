@@ -734,35 +734,39 @@ function renderEmployeeDash() {
   const minsRemaining = Math.max(0, LIMIT - cumulativeMins);
   const remainingStr = `${Math.floor(minsRemaining / 60)}h ${minsRemaining % 60}m`;
 
+  // Salary data
+  const curSalMonth  = curSal ? monthName(sal.month) + ' ' + sal.year : null;
+  const salaryColor  = curSal ? 'var(--green2)' : 'var(--text3)';
+
+  // Live monitor data — colleagues clocked in right now
+  const liveTeam = (d.live_today || []).filter(e => e.user_id !== (S.user?.id));
+
   return `
   <div class="grid grid-2" style="gap:20px">
+
+    <!-- ── LEFT COLUMN ─────────────────────────────────── -->
     <div>
-      <!-- DYNAMIC CLOCK WIDGET -->
+
+      <!-- CLOCK WIDGET -->
       <div class="clock-widget" style="margin-bottom:16px">
         <div class="clock-big" id="emp-clock">${fmtNSTTime()}</div>
         <div class="clock-date-str" id="emp-date">${fmtNSTDate()}</div>
-        
-        <div id="ot-countdown" style="margin: 18px 0; height: 50px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-          ${isOvertime 
-            ? `<span class="badge badge-amber" style="padding:10px 20px; font-weight:700; border:1px solid var(--amber); box-shadow: 0 0 15px rgba(245,158,11,0.3)">
-                 🔥 DOUBLE PAY ACTIVE
-               </span>` 
+
+        <div id="ot-countdown" style="margin:18px 0;height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          ${isOvertime
+            ? `<span class="badge badge-amber" style="padding:10px 20px;font-weight:700;border:1px solid var(--amber);box-shadow:0 0 15px rgba(245,158,11,.3)">🔥 DOUBLE PAY ACTIVE</span>`
             : `<div>
                  <div class="stat-label" style="margin-bottom:4px">TIME UNTIL DOUBLE PAY</div>
-                 <div id="ot-remaining" style="font-size:22px; font-weight:600; font-family:'IBM Plex Mono'; color:var(--accent2); line-height:1">
-                   ${remainingStr}
-                 </div>
-                 <div id="ot-worked" style="font-size:10px; color:var(--text3); margin-top:4px">Total worked today: ${fmtMins(cumulativeMins)}</div>
-               </div>`
-          }
+                 <div id="ot-remaining" style="font-size:22px;font-weight:600;font-family:'IBM Plex Mono';color:var(--accent2);line-height:1">${remainingStr}</div>
+                 <div id="ot-worked" style="font-size:10px;color:var(--text3);margin-top:4px">Total worked today: ${fmtMins(cumulativeMins)}</div>
+               </div>`}
         </div>
 
         <div class="clock-status-row" id="clock-status-row">
-          ${d.clocked_in 
-            ? `<div class="status-dot"></div><span id="active-session-timer" style="color:var(--green2)">Active: ${fmtMins(Math.floor((nowNST().getTime() - new Date(d.open_session.clock_in).getTime())/60000))}</span>` 
+          ${d.clocked_in
+            ? `<div class="status-dot"></div><span id="active-session-timer" style="color:var(--green2)">Active: ${fmtMins(Math.floor((nowNST().getTime()-new Date(d.open_session.clock_in).getTime())/60000))}</span>`
             : `<span style="color:var(--text2)">Currently Out</span>`}
         </div>
-
         <div style="display:flex;gap:8px;justify-content:center">
           ${d.clocked_in
             ? `<button class="btn btn-danger" id="clockout-btn" style="flex:1;padding:12px;font-size:14px">⏹ Clock Out (NST)</button>`
@@ -783,19 +787,74 @@ function renderEmployeeDash() {
               ${(d.today_sessions||[]).map((s,i)=>`<tr>
                 <td style="color:var(--text3)">${i+1}</td>
                 <td style="font-family:'IBM Plex Mono'">${fmtTime(s.clock_in)}</td>
-                <td style="font-family:'IBM Plex Mono'">${s.clock_out ? fmtTime(s.clock_out) : '<span style="color:var(--green2)">Active</span>'}</td>
-                <td style="font-family:'IBM Plex Mono'; color:var(--green2)">${s.duration_min ? fmtMins(s.duration_min) : '—'}</td>
+                <td style="font-family:'IBM Plex Mono'">${s.clock_out?fmtTime(s.clock_out):'<span style="color:var(--green2)">Active</span>'}</td>
+                <td style="font-family:'IBM Plex Mono';color:var(--green2)">${s.duration_min?fmtMins(s.duration_min):'—'}</td>
               </tr>`).join('')}
               <tr style="background:rgba(255,255,255,.03)">
                 <td colspan="3" style="font-weight:600">Summed Work Today</td>
-                <td id="summed-work-today" style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2)">${fmtMins(cumulativeMins)}</td>
+                <td id="summed-work-today" style="font-family:'IBM Plex Mono';font-weight:700;color:var(--green2)">${fmtMins(cumulativeMins)}</td>
               </tr>
             </tbody>
-          </table></div>` : '<div class="empty"><div class="empty-text">No sessions recorded yet today.</div></div>'}
+          </table></div>`
+          : '<div class="empty"><div class="empty-text">No sessions recorded yet today.</div></div>'}
+      </div>
+
+      <!-- ── SALARY WIDGET ───────────────────────────── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div class="card-title">💰 My Salary</div>
+          <button class="btn btn-sm" data-nav="salary">Full History</button>
+        </div>
+        ${curSal ? `
+          <div class="grid grid-2" style="gap:10px;margin-bottom:14px">
+            <div class="stat" style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15)">
+              <div class="stat-label">THIS MONTH (${curSalMonth})</div>
+              <div class="stat-value" style="font-size:20px;color:var(--green2)">${fmtNPR(curSal.base_salary)}</div>
+              <div class="stat-sub">NPR</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">HOURS LOGGED</div>
+              <div class="stat-value" style="font-size:20px">${curSal.total_hours||0}h</div>
+              <div class="stat-sub">${curSal.regular_hours||0}h reg + <span style="color:var(--amber)">${curSal.extra_hours||0}h OT</span></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-family:'IBM Plex Mono';font-size:12px">
+            <div style="background:var(--surface2);border-radius:6px;padding:8px;text-align:center">
+              <div style="color:var(--text3);font-size:10px;margin-bottom:3px">RATE/HR</div>
+              <div style="color:var(--text1);font-weight:600">${fmtNPR(curSal.hourly_rate)}</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:6px;padding:8px;text-align:center">
+              <div style="color:var(--text3);font-size:10px;margin-bottom:3px">BASE PAY</div>
+              <div style="color:var(--text1);font-weight:600">${fmtNPR(curSal.base_salary - (curSal.extra_pay||0))}</div>
+            </div>
+            <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;padding:8px;text-align:center">
+              <div style="color:var(--amber);font-size:10px;margin-bottom:3px">OT BONUS</div>
+              <div style="color:var(--amber);font-weight:600">+${fmtNPR(curSal.extra_pay||0)}</div>
+            </div>
+          </div>
+          ${sal.history?.length > 1 ? `
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+            <div class="stat-label" style="margin-bottom:8px">RECENT MONTHS</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              ${sal.history.slice(1,4).map(h=>`
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
+                  <span style="color:var(--text2)">${monthName(h.month)} ${h.year}</span>
+                  <span style="font-family:'IBM Plex Mono';color:var(--green2);font-weight:600">${fmtNPR(h.base_salary)}</span>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
+        ` : `
+          <div class="empty" style="padding:20px">
+            <div class="empty-icon">💰</div>
+            <div class="empty-text">No salary computed yet for this month</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px">Your admin will compute it at month end</div>
+          </div>`}
       </div>
     </div>
 
+    <!-- ── RIGHT COLUMN ────────────────────────────────── -->
     <div>
+
       <!-- MONTH STATS -->
       <div class="card" style="margin-bottom:16px">
         <div class="card-header"><div class="card-title">This Month Stats</div></div>
@@ -807,15 +866,48 @@ function renderEmployeeDash() {
         </div>
       </div>
 
+      <!-- ── LIVE MONITOR WIDGET ─────────────────────── -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📡 Who's Working Now</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${d.nepal_date||fmtNSTDate()} NST</div>
+          </div>
+          <button class="btn btn-sm" data-nav="live">Full Monitor</button>
+        </div>
+        ${(d.live_today||[]).length ? `
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${(d.live_today||[]).slice(0,6).map(e=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--surface2);border-radius:8px">
+                <div class="avatar" style="width:32px;height:32px;font-size:12px;flex-shrink:0">${initials(e.full_name)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.full_name}</div>
+                  <div style="font-size:11px;color:var(--text3)">${e.shift_name||'No shift'}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  ${e.current_clock_in
+                    ? `<div style="display:flex;align-items:center;gap:5px"><span class="status-dot"></span><span style="font-size:11px;color:var(--green2);font-family:'IBM Plex Mono'">since ${fmtTime(e.current_clock_in)}</span></div>`
+                    : `<span style="font-size:11px;color:var(--text3)">—</span>`}
+                  <div style="font-size:11px;color:var(--text2);font-family:'IBM Plex Mono'">${fmtMins(e.total_minutes||0)}</div>
+                </div>
+              </div>`).join('')}
+            ${(d.live_today||[]).length > 6 ? `<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px">+${(d.live_today||[]).length-6} more</div>` : ''}
+          </div>` : `
+          <div class="empty" style="padding:20px">
+            <div class="empty-icon">📡</div>
+            <div class="empty-text">No one clocked in yet today</div>
+          </div>`}
+      </div>
+
       <!-- ATTENDANCE HISTORY -->
       <div class="card">
         <div class="card-header"><div class="card-title">Attendance History (NST)</div></div>
         ${rh.length ? `<div class="table-wrap"><table>
           <thead><tr><th>Date</th><th>Sessions</th><th>Total</th><th>Status</th></tr></thead>
           <tbody>${rh.map(r=>`<tr>
-            <td style="font-family:'IBM Plex Mono'; font-size:12px">${fmtDateShort(r.work_date)}</td>
+            <td style="font-family:'IBM Plex Mono';font-size:12px">${fmtDateShort(r.work_date)}</td>
             <td>${renderSessionPills(r.sessions)}</td>
-            <td style="font-family:'IBM Plex Mono'; color:var(--green2)">${fmtMins(r.total_minutes)}</td>
+            <td style="font-family:'IBM Plex Mono';color:var(--green2)">${fmtMins(r.total_minutes)}</td>
             <td>${statusBadge(r.status)}</td>
           </tr>`).join('')}</tbody>
         </table></div>` : '<div class="empty"><div class="empty-text">No history found.</div></div>'}
@@ -823,6 +915,7 @@ function renderEmployeeDash() {
           <button class="btn" id="req-correction-btn">✏️ Request Correction</button>
         </div>
       </div>
+
     </div>
   </div>`;
 }

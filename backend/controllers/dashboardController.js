@@ -200,21 +200,6 @@ async function employeeSummary(res, userId) {
     openSession   = rows.find(s => !s.clock_out) || null;
   }
 
-  // Cross-day check: if no open session found in today's rows,
-  // look for an open session from a previous day (e.g. employee
-  // clocked in yesterday at 22:00 and hasn't clocked out yet).
-  if (!openSession) {
-    const [[prevOpen]] = await db.execute(`
-      SELECT cs.id, cs.clock_in, cs.clock_out, cs.duration_min, a.work_date
-        FROM clock_sessions cs
-        JOIN attendance a ON a.id = cs.attendance_id
-       WHERE cs.user_id = ? AND cs.clock_out IS NULL
-       ORDER BY cs.clock_in DESC
-       LIMIT 1
-    `, [userId]);
-    if (prevOpen) openSession = prevOpen;
-  }
-
   const [[monthStats]] = await db.execute(`
     SELECT
       COUNT(*) AS total_days,
@@ -273,6 +258,28 @@ async function employeeSummary(res, userId) {
     `SELECT hourly_rate FROM users WHERE id = ?`, [userId]
   );
 
+  // Fetch today's attendance for the branch — for the "Who's Working Now" widget
+  const [[empBranch]] = await db.execute(`SELECT branch_id FROM users WHERE id = ?`, [userId]);
+  const branchId = empBranch?.branch_id;
+  let liveToday = [];
+  if (branchId) {
+    const [liveRows] = await db.execute(`
+      SELECT u.id AS user_id, u.full_name, u.employee_code,
+             a.total_minutes, a.status,
+             s.name AS shift_name,
+             (SELECT cs.clock_in FROM clock_sessions cs
+                WHERE cs.attendance_id = a.id AND cs.clock_out IS NULL
+                ORDER BY cs.clock_in DESC LIMIT 1) AS current_clock_in
+        FROM attendance a
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN employee_shifts es ON es.user_id = u.id AND es.effective_to IS NULL
+        LEFT JOIN shifts s ON s.id = es.shift_id
+       WHERE a.branch_id = ? AND a.work_date = ?
+       ORDER BY u.full_name
+    `, [branchId, todayNP]);
+    liveToday = liveRows;
+  }
+
   res.json({
     role: 'employee',
     nepal_date:      todayNP,
@@ -285,6 +292,7 @@ async function employeeSummary(res, userId) {
     recent_history:  recentHistory,
     shift:           shiftInfo || null,
     hourly_rate:     userInfo?.hourly_rate || 0,
+    live_today:      liveToday,
     salary: {
       month, year,
       current:  currentSalary || null,
