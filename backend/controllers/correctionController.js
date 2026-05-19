@@ -26,11 +26,15 @@ async function list(req, res) {
     SELECT cr.*,
            u.full_name, u.employee_code,
            b.name AS branch_name,
-           r.full_name AS resolved_by_name
+           r.full_name AS resolved_by_name,
+           cs.clock_in  AS existing_clock_in,
+           cs.clock_out AS existing_clock_out,
+           cs.duration_min AS existing_duration_min
       FROM correction_requests cr
-      JOIN users    u ON u.id = cr.user_id
-      JOIN branches b ON b.id = cr.branch_id
-      LEFT JOIN users r ON r.id = cr.resolved_by
+      JOIN users    u  ON u.id  = cr.user_id
+      JOIN branches b  ON b.id  = cr.branch_id
+      LEFT JOIN users r  ON r.id  = cr.resolved_by
+      LEFT JOIN clock_sessions cs ON cs.id = cr.session_id
      ${whereClause}
      ORDER BY cr.created_at DESC
   `, params);
@@ -41,10 +45,12 @@ async function list(req, res) {
 // GET /api/corrections/:id
 async function get(req, res) {
   const [[row]] = await db.execute(`
-    SELECT cr.*, u.full_name, b.name AS branch_name
+    SELECT cr.*, u.full_name, b.name AS branch_name,
+           cs.clock_in AS existing_clock_in, cs.clock_out AS existing_clock_out
       FROM correction_requests cr
       JOIN users    u ON u.id = cr.user_id
       JOIN branches b ON b.id = cr.branch_id
+      LEFT JOIN clock_sessions cs ON cs.id = cr.session_id
      WHERE cr.id = ?
   `, [req.params.id]);
 
@@ -54,7 +60,7 @@ async function get(req, res) {
 
 // POST /api/corrections  (employee submits)
 async function create(req, res) {
-  const { work_date, issue_type, description, attendance_id } = req.body;
+  const { work_date, issue_type, description, attendance_id, session_id } = req.body;
   const { id: userId, branch_id } = req.user;
 
   if (!work_date || !issue_type || !description) {
@@ -64,9 +70,9 @@ async function create(req, res) {
 
   const [result] = await db.execute(
     `INSERT INTO correction_requests
-       (user_id, branch_id, attendance_id, work_date, issue_type, description)
-     VALUES (?,?,?,?,?,?)`,
-    [userId, branch_id, attendance_id || null, work_date, issue_type, description]
+       (user_id, branch_id, attendance_id, session_id, work_date, issue_type, description)
+     VALUES (?,?,?,?,?,?,?)`,
+    [userId, branch_id, attendance_id || null, session_id || null, work_date, issue_type, description]
   );
 
   const [[created]] = await db.execute(
@@ -79,10 +85,13 @@ async function create(req, res) {
 async function approve(req, res) {
   const { id: resolverId } = req.user;
   const { id } = req.params;
-  // Admin can supply any combination of:
-  //   clock_in  / clock_out  — insert a corrected clock session
-  //   total_minutes          — directly override the day total
-  const { clock_in, clock_out, total_minutes } = req.body;
+  const {
+    clock_in,
+    clock_out,
+    total_minutes,
+    erase_sessions,
+    replace_session  // if true, delete the original wrong session before inserting corrected one
+  } = req.body;
 
   await db.execute(
     `UPDATE correction_requests
@@ -114,13 +123,21 @@ async function approve(req, res) {
   );
 
   if (clock_in && clock_out) {
-    // Insert a corrected clock session for the given time range
+    // If replacing: delete the specific wrong session the employee flagged
+    if (replace_session && cr.session_id) {
+      await db.execute(
+        `DELETE FROM clock_sessions WHERE id = ?`, [cr.session_id]
+      );
+    }
+
+    // Insert the corrected session
     await db.execute(
       `INSERT INTO clock_sessions (attendance_id, user_id, clock_in, clock_out)
        VALUES (?, ?, ?, ?)`,
       [att.id, cr.user_id, clock_in, clock_out]
     );
-    // Recompute total_minutes from all sessions
+
+    // Recompute total_minutes from all remaining sessions
     await db.execute(`
       UPDATE attendance a
          SET total_minutes = (
@@ -132,7 +149,14 @@ async function approve(req, res) {
              updated_at = NOW()
        WHERE a.id = ?
     `, [att.id]);
+
   } else if (total_minutes !== undefined && total_minutes !== null && total_minutes !== '') {
+    // Erase all sessions if requested before setting total override
+    if (erase_sessions) {
+      await db.execute(
+        `DELETE FROM clock_sessions WHERE attendance_id = ?`, [att.id]
+      );
+    }
     // Directly override total_minutes for the day
     await db.execute(
       `UPDATE attendance SET total_minutes = ?, notes = 'Total manually corrected', updated_at = NOW() WHERE id = ?`,
