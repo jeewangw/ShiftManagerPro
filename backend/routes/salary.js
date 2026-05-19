@@ -14,6 +14,7 @@ router.get('/my-salary', ctrl.mySalary);
 router.get('/', authorize('super_admin', 'branch_admin'), ctrl.list);
 router.get('/:id', authorize('super_admin', 'branch_admin'), ctrl.get);
 router.post('/compute', authorize('super_admin', 'branch_admin'), ctrl.compute);
-router.put('/:id/rate', authorize('super_admin', 'branch_admin'), ctrl.updateRate);
+router.put('/:id/rate',   authorize('super_admin', 'branch_admin'), ctrl.updateRate);
+router.put('/:id/status', authorize('super_admin', 'branch_admin'), ctrl.updateStatus);
 
 module.exports = router;

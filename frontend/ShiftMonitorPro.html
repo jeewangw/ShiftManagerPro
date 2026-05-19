@@ -403,6 +403,12 @@ function fmtNPR(v) {
 function monthName(m) {
   return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1] || m;
 }
+function salaryStatusBadge(s) {
+  if (s === 'paid_out')      return '<span style="background:rgba(16,185,129,.15);color:var(--green2);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">✓ Paid Out</span>';
+  if (s === 'processing')    return '<span style="background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.3);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">⟳ Processing</span>';
+  return '<span style="background:rgba(148,163,184,.08);color:var(--text3);border:1px solid var(--border);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">— Not Processed</span>';
+}
+
 function statusBadge(s) {
   const m={present:'badge-green',absent:'badge-red',late:'badge-amber',half_day:'badge-blue',holiday:'badge-gray',
            pending:'badge-amber',approved:'badge-green',rejected:'badge-red',clocked_out:'badge-gray'};
@@ -469,7 +475,7 @@ function renderLogin() {
       <div class="form-group"><label class="form-label">PASSWORD</label>
         <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center;padding:11px;font-size:14px">Sign In</button>
-      <div style="margin-top:16px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text3);text-align:center;font-family:'IBM Plex Mono',monospace">
+      <div style="margin-top:16px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text3);text-align:center;font-family:var(--mono)">
         All times are recorded in Nepal Standard Time (NST / UTC+5:45)
       </div>
     </div>
@@ -669,11 +675,11 @@ function renderBranchDash() {
         <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${initials(e.full_name)}</div>
           <div><div style="font-weight:500">${e.full_name}</div><div style="font-size:11px;color:var(--text3)">${e.employee_code||''}</div></div>
         </div></td>
-        <td style="color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px">${e.start_time||'—'}–${e.end_time||''}</td>
+        <td style="color:var(--text2);font-family:var(--mono);font-size:12px">${e.start_time||'—'}–${e.end_time||''}</td>
         <td><span class="badge badge-blue">${e.session_count||0} session${e.session_count!==1?'s':''}</span>
           ${e.current_clock_in?`<span class="badge badge-green" style="margin-left:4px"><span class="badge-dot"></span>Active since ${fmtTime(e.current_clock_in)}</span>`:''}
         </td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--green2)">${fmtMins(e.total_minutes)}</td>
+        <td style="font-family:var(--mono);font-size:13px;color:var(--green2)">${fmtMins(e.total_minutes)}</td>
         <td>${e.status?statusBadge(e.status):'<span class="badge badge-gray">Not in yet</span>'}</td>
       </tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">No employees</div></div>'}
@@ -686,14 +692,14 @@ function renderBranchDash() {
       <thead><tr><th>Employee</th><th>Rate/hr (NPR)</th><th>Hours</th><th>Base Salary (NPR)</th></tr></thead>
       <tbody>${sal.records.map(r=>`<tr>
         <td>${r.full_name}</td>
-        <td style="font-family:'IBM Plex Mono',monospace">${fmtNPR(r.hourly_rate)}</td>
-        <td style="font-family:'IBM Plex Mono',monospace">${r.total_hours}h</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--green2)">${fmtNPR(r.base_salary)}</td>
+        <td style="font-family:var(--mono)">${fmtNPR(r.hourly_rate)}</td>
+        <td style="font-family:var(--mono)">${r.total_hours}h</td>
+        <td style="font-family:var(--mono);font-weight:600;color:var(--green2)">${fmtNPR(r.base_salary)}</td>
       </tr>`).join('')}
       <tr style="background:rgba(255,255,255,.03)">
         <td colspan="2" style="font-weight:600">Total</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-weight:600">${sal.summary?.total_hours||0}h</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--green2)">${fmtNPR(sal.summary?.total_salary||0)}</td>
+        <td style="font-family:var(--mono);font-weight:600">${sal.summary?.total_hours||0}h</td>
+        <td style="font-family:var(--mono);font-weight:700;color:var(--green2)">${fmtNPR(sal.summary?.total_salary||0)}</td>
       </tr>
       </tbody>
     </table></div>
@@ -757,7 +763,7 @@ function renderEmployeeDash() {
             ? `<span class="badge badge-amber" style="padding:10px 20px;font-weight:700;border:1px solid var(--amber);box-shadow:0 0 15px rgba(245,158,11,.3)">🔥 DOUBLE PAY ACTIVE</span>`
             : `<div>
                  <div class="stat-label" style="margin-bottom:4px">TIME UNTIL DOUBLE PAY</div>
-                 <div id="ot-remaining" style="font-size:22px;font-weight:600;font-family:'IBM Plex Mono';color:var(--accent2);line-height:1">${remainingStr}</div>
+                 <div id="ot-remaining" style="font-size:22px;font-weight:600;font-family:var(--mono);color:var(--accent2);line-height:1">${remainingStr}</div>
                  <div id="ot-worked" style="font-size:10px;color:var(--text3);margin-top:4px">Total worked today: ${fmtMins(cumulativeMins)}</div>
                </div>`}
         </div>
@@ -774,31 +780,6 @@ function renderEmployeeDash() {
         </div>
       </div>
 
-      <!-- TODAY'S SESSIONS -->
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header">
-          <div class="card-title">Today's Sessions</div>
-          <span class="badge badge-blue">${(d.today_sessions||[]).length} session(s)</span>
-        </div>
-        ${(d.today_sessions||[]).length ? `
-          <div class="table-wrap"><table>
-            <thead><tr><th>#</th><th>In (NST)</th><th>Out (NST)</th><th>Total</th></tr></thead>
-            <tbody>
-              ${(d.today_sessions||[]).map((s,i)=>`<tr>
-                <td style="color:var(--text3)">${i+1}</td>
-                <td style="font-family:'IBM Plex Mono'">${fmtTime(s.clock_in)}</td>
-                <td style="font-family:'IBM Plex Mono'">${s.clock_out?fmtTime(s.clock_out):'<span style="color:var(--green2)">Active</span>'}</td>
-                <td style="font-family:'IBM Plex Mono';color:var(--green2)">${s.duration_min?fmtMins(s.duration_min):'—'}</td>
-              </tr>`).join('')}
-              <tr style="background:rgba(255,255,255,.03)">
-                <td colspan="3" style="font-weight:600">Summed Work Today</td>
-                <td id="summed-work-today" style="font-family:'IBM Plex Mono';font-weight:700;color:var(--green2)">${fmtMins(cumulativeMins)}</td>
-              </tr>
-            </tbody>
-          </table></div>`
-          : '<div class="empty"><div class="empty-text">No sessions recorded yet today.</div></div>'}
-      </div>
-
       <!-- ── SALARY WIDGET ───────────────────────────── -->
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
@@ -806,6 +787,17 @@ function renderEmployeeDash() {
           <button class="btn btn-sm" data-nav="salary">Full History</button>
         </div>
         ${curSal ? `
+          <!-- Status + computed date row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:8px 12px;background:var(--surface2);border-radius:8px">
+            <div>
+              <div style="font-size:10px;color:var(--text3);letter-spacing:.05em;margin-bottom:3px">PAYMENT STATUS</div>
+              ${salaryStatusBadge(curSal.status)}
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:10px;color:var(--text3);letter-spacing:.05em;margin-bottom:2px">COMPUTED UP TO</div>
+              <div style="font-size:12px;color:var(--text2);font-family:var(--mono)">${curSal.computed_up_to ? curSal.computed_up_to.toString().slice(0,10) : (curSal.computed_at ? curSal.computed_at.toString().slice(0,10) : '—')}</div>
+            </div>
+          </div>
           <div class="grid grid-2" style="gap:10px;margin-bottom:14px">
             <div class="stat" style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15)">
               <div class="stat-label">THIS MONTH (${curSalMonth})</div>
@@ -818,7 +810,7 @@ function renderEmployeeDash() {
               <div class="stat-sub">${curSal.regular_hours||0}h reg + <span style="color:var(--amber)">${curSal.extra_hours||0}h OT</span></div>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-family:'IBM Plex Mono';font-size:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-family:var(--mono);font-size:12px">
             <div style="background:var(--surface2);border-radius:6px;padding:8px;text-align:center">
               <div style="color:var(--text3);font-size:10px;margin-bottom:3px">RATE/HR</div>
               <div style="color:var(--text1);font-weight:600">${fmtNPR(curSal.hourly_rate)}</div>
@@ -837,9 +829,15 @@ function renderEmployeeDash() {
             <div class="stat-label" style="margin-bottom:8px">RECENT MONTHS</div>
             <div style="display:flex;flex-direction:column;gap:4px">
               ${sal.history.slice(1,4).map(h=>`
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
-                  <span style="color:var(--text2)">${monthName(h.month)} ${h.year}</span>
-                  <span style="font-family:'IBM Plex Mono';color:var(--green2);font-weight:600">${fmtNPR(h.base_salary)}</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)">
+                  <div>
+                    <span style="color:var(--text2)">${monthName(h.month)} ${h.year}</span>
+                    ${h.computed_up_to ? `<div style="font-size:10px;color:var(--text3);font-family:var(--mono)">up to ${h.computed_up_to.toString().slice(0,10)}</div>` : ''}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    ${salaryStatusBadge(h.status)}
+                    <span style="font-family:var(--mono);color:var(--green2);font-weight:600">${fmtNPR(h.base_salary)}</span>
+                  </div>
                 </div>`).join('')}
             </div>
           </div>` : ''}
@@ -871,27 +869,27 @@ function renderEmployeeDash() {
         <div class="card-header">
           <div>
             <div class="card-title">📡 Who's Working Now</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">${d.nepal_date||fmtNSTDate()} NST</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">All branches — ${d.nepal_date||fmtNSTDate()} NST</div>
           </div>
           <button class="btn btn-sm" data-nav="live">Full Monitor</button>
         </div>
         ${(d.live_today||[]).length ? `
-          <div style="display:flex;flex-direction:column;gap:8px">
-            ${(d.live_today||[]).slice(0,6).map(e=>`
-              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--surface2);border-radius:8px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${(d.live_today||[]).slice(0,8).map(e=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--surface2);border-radius:8px;${e.current_clock_in?'border-left:2px solid var(--green2)':''}">
                 <div class="avatar" style="width:32px;height:32px;font-size:12px;flex-shrink:0">${initials(e.full_name)}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.full_name}</div>
-                  <div style="font-size:11px;color:var(--text3)">${e.shift_name||'No shift'}</div>
+                  <div style="font-size:11px;color:var(--text3)">${e.branch_name||''} ${e.shift_name ? '· '+e.shift_name : ''}</div>
                 </div>
                 <div style="text-align:right;flex-shrink:0">
                   ${e.current_clock_in
-                    ? `<div style="display:flex;align-items:center;gap:5px"><span class="status-dot"></span><span style="font-size:11px;color:var(--green2);font-family:'IBM Plex Mono'">since ${fmtTime(e.current_clock_in)}</span></div>`
-                    : `<span style="font-size:11px;color:var(--text3)">—</span>`}
-                  <div style="font-size:11px;color:var(--text2);font-family:'IBM Plex Mono'">${fmtMins(e.total_minutes||0)}</div>
+                    ? '<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end"><span class="status-dot"></span><span style="font-size:11px;color:var(--green2);font-family:monospace">'+fmtTime(e.current_clock_in)+'</span></div>'
+                    : '<span style="font-size:11px;color:var(--text3)">Clocked out</span>'}
+                  <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtMins(e.total_minutes||0)}</div>
                 </div>
               </div>`).join('')}
-            ${(d.live_today||[]).length > 6 ? `<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px">+${(d.live_today||[]).length-6} more</div>` : ''}
+            ${(d.live_today||[]).length > 8 ? `<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px">+${(d.live_today||[]).length-8} more colleagues working today</div>` : ''}
           </div>` : `
           <div class="empty" style="padding:20px">
             <div class="empty-icon">📡</div>
@@ -905,9 +903,9 @@ function renderEmployeeDash() {
         ${rh.length ? `<div class="table-wrap"><table>
           <thead><tr><th>Date</th><th>Sessions</th><th>Total</th><th>Status</th></tr></thead>
           <tbody>${rh.map(r=>`<tr>
-            <td style="font-family:'IBM Plex Mono';font-size:12px">${fmtDateShort(r.work_date)}</td>
+            <td style="font-family:var(--mono);font-size:12px">${fmtDateShort(r.work_date)}</td>
             <td>${renderSessionPills(r.sessions)}</td>
-            <td style="font-family:'IBM Plex Mono';color:var(--green2)">${fmtMins(r.total_minutes)}</td>
+            <td style="font-family:var(--mono);color:var(--green2)">${fmtMins(r.total_minutes)}</td>
             <td>${statusBadge(r.status)}</td>
           </tr>`).join('')}</tbody>
         </table></div>` : '<div class="empty"><div class="empty-text">No history found.</div></div>'}
@@ -962,12 +960,12 @@ function renderLive() {
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div style="background:var(--bg3);border-radius:6px;padding:8px">
-            <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">CURRENT IN</div>
-            <div style="font-weight:500;font-family:'IBM Plex Mono',monospace;font-size:13px">${fmtTime(openSess?.clock_in)} NST</div>
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">CURRENT IN</div>
+            <div style="font-weight:500;font-family:var(--mono);font-size:13px">${fmtTime(openSess?.clock_in)} NST</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:8px">
-            <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">TOTAL TODAY</div>
-            <div style="font-weight:500;color:${isOvertime ? 'var(--amber2)' : 'var(--green2)'};font-family:'IBM Plex Mono',monospace;font-size:13px">
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">TOTAL TODAY</div>
+            <div style="font-weight:500;color:${isOvertime ? 'var(--amber2)' : 'var(--green2)'};font-family:var(--mono);font-size:13px">
               ${fmtMins(e.total_minutes)}
             </div>
           </div>
@@ -987,7 +985,7 @@ function renderLive() {
           <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${initials(e.full_name)}</div>${e.full_name}</div></td>
           <td style="color:var(--text2)">${e.branch_name || '—'}</td>
           <td>${renderSessionPills(e.sessions)}</td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:${isOT ? 'var(--amber2)' : 'var(--green2)'}">
+          <td style="font-family:var(--mono);font-size:12px;color:${isOT ? 'var(--amber2)' : 'var(--green2)'}">
             ${fmtMins(e.total_minutes)} ${isOT ? '<strong>(2x)</strong>' : ''}
           </td>
           <td>${statusBadge(e.status || 'absent')}</td>
@@ -1039,11 +1037,11 @@ function renderEmployees() {
       <thead><tr><th>Name</th><th>Branch</th><th>Shift</th><th>Rate/hr (NPR)</th><th>Action</th></tr></thead>
       <tbody>${emps.map(e=>`<tr>
         <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar">${initials(e.full_name)}</div>
-          <div><div style="font-weight:500">${e.full_name}</div><div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${e.employee_code||e.id}</div></div>
+          <div><div style="font-weight:500">${e.full_name}</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${e.employee_code||e.id}</div></div>
         </div></td>
         <td style="color:var(--text2);font-size:12px">${e.branch_name||'—'}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2)">${e.start_time||'—'}${e.start_time?'–'+e.end_time:''}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtNPR(e.hourly_rate||0)}</td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--text2)">${e.start_time||'—'}${e.start_time?'–'+e.end_time:''}</td>
+        <td style="font-family:var(--mono);font-size:12px">${fmtNPR(e.hourly_rate||0)}</td>
         <td><div style="display:flex;gap:6px">
           <button class="btn btn-sm" data-edit-emp="${e.id}" data-emp='${JSON.stringify({id:e.id,full_name:e.full_name,email:e.email,phone:e.phone||'',branch_id:e.branch_id,hourly_rate:e.hourly_rate||0})}'>Edit</button>
           <button class="btn btn-sm btn-danger" data-del-emp="${e.id}">Del</button>
@@ -1078,9 +1076,9 @@ function renderAttendance() {
       <thead><tr><th>Employee</th><th>Date (NST)</th><th>Sessions</th><th>Total Hours</th><th>Status</th></tr></thead>
       <tbody>${rows.map(r=>`<tr>
         <td>${r.full_name}<br><span style="font-size:11px;color:var(--text3)">${r.branch_name||''}</span></td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtDateShort(r.work_date)}</td>
+        <td style="font-family:var(--mono);font-size:12px">${fmtDateShort(r.work_date)}</td>
         <td>${renderSessionPills(r.sessions)}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green2)">${fmtMins(r.total_minutes)}</td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--green2)">${fmtMins(r.total_minutes)}</td>
         <td>${statusBadge(r.status)}</td>
       </tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty"><div class="empty-text">No records found</div></div>'}
@@ -1172,22 +1170,26 @@ function renderMySalaryTable(rows) {
               <th>Regular</th>
               <th>Extra (2x)</th>
               <th>Total Pay (NPR)</th>
-              <th>Date</th>
+              <th>Computed Up To</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             ${rows.map(r => `
               <tr>
                 <td style="font-weight:600; color:var(--text)">${monthName(r.month)} ${r.year}</td>
-                <td style="font-family:'IBM Plex Mono'; font-size:12px; color:var(--text2)">${fmtNPR(r.hourly_rate)}</td>
-                <td style="font-family:'IBM Plex Mono'; font-size:13px">${r.regular_hours}h</td>
-                <td style="font-family:'IBM Plex Mono'; font-size:13px; color:var(--amber2)">
+                <td style="font-family:var(--mono); font-size:12px; color:var(--text2)">${fmtNPR(r.hourly_rate)}</td>
+                <td style="font-family:var(--mono); font-size:13px">${r.regular_hours}h</td>
+                <td style="font-family:var(--mono); font-size:13px; color:var(--amber2)">
                   ${r.extra_hours > 0 ? `+${r.extra_hours}h` : '<span style="color:var(--text3)">—</span>'}
                 </td>
-                <td style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2); font-size:15px">
+                <td style="font-family:var(--mono); font-weight:700; color:var(--green2); font-size:15px">
                   ${fmtNPR(r.base_salary)}
                 </td>
-                <td style="font-size:11px; color:var(--text3); font-family:'IBM Plex Mono'">${fmtDateShort(r.computed_at)}</td>
+                <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">
+                  ${r.computed_up_to ? r.computed_up_to.toString().slice(0,10) : (r.computed_at ? r.computed_at.toString().slice(0,10) : '—')}
+                </td>
+                <td>${salaryStatusBadge(r.status)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1224,24 +1226,36 @@ function renderAdminSalaryTable(grouped) {
               <th>Rate</th>
               <th>Reg Hrs</th>
               <th>Extra (2x)</th>
-              <th>Base Salary</th>
               <th>Total Pay</th>
+              <th>Computed Up To</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             ${u.records.map(r => `
               <tr>
                 <td>${monthName(r.month)} ${r.year}</td>
-                <td style="font-family:'IBM Plex Mono'">${fmtNPR(r.hourly_rate)}</td>
-                <td style="font-family:'IBM Plex Mono'">${r.regular_hours}h</td>
-                <td style="font-family:'IBM Plex Mono'; color:var(--amber2)">
+                <td style="font-family:var(--mono)">${fmtNPR(r.hourly_rate)}</td>
+                <td style="font-family:var(--mono)">${r.regular_hours}h</td>
+                <td style="font-family:var(--mono); color:var(--amber2)">
                    ${r.extra_hours > 0 ? `+${r.extra_hours}h` : '—'}
                 </td>
-                <td style="font-family:'IBM Plex Mono'; color:var(--text3)">
-                   ${fmtNPR(r.total_hours * r.hourly_rate)}
-                </td>
-                <td style="font-family:'IBM Plex Mono'; font-weight:700; color:var(--green2)">
+                <td style="font-family:var(--mono); font-weight:700; color:var(--green2)">
                    ${fmtNPR(r.base_salary)}
+                </td>
+                <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">
+                  ${r.computed_up_to ? r.computed_up_to.toString().slice(0,10) : (r.computed_at ? r.computed_at.toString().slice(0,10) : '—')}
+                </td>
+                <td>
+                  <select class="form-input sal-status-sel" data-salid="${r.id}"
+                    style="padding:3px 6px;font-size:11px;border-radius:8px;min-width:130px;
+                    ${r.status==='paid_out'?'color:var(--green2);background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3)':
+                      r.status==='processing'?'color:var(--amber);background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3)':
+                      'color:var(--text3)'}">
+                    <option value="not_processed" ${(!r.status||r.status==='not_processed')?'selected':''}>— Not Processed</option>
+                    <option value="processing"    ${r.status==='processing'   ?'selected':''}>⟳ Processing</option>
+                    <option value="paid_out"      ${r.status==='paid_out'     ?'selected':''}>✓ Paid Out</option>
+                  </select>
                 </td>
               </tr>
             `).join('')}
@@ -1274,7 +1288,7 @@ function renderCorrections() {
       </tr></thead>
       <tbody>${rows.map(c=>`<tr>
         <td><strong>${c.full_name||'—'}</strong><br><span style="font-size:11px;color:var(--text3)">${c.employee_code||''}</span></td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtDateShort(c.work_date)}</td>
+        <td style="font-family:var(--mono);font-size:12px">${fmtDateShort(c.work_date)}</td>
         <td><span class="badge badge-blue" style="font-size:10px;text-transform:capitalize">${c.issue_type.replace(/_/g,' ')}</span></td>
         <td style="color:var(--text2);font-size:12px;max-width:200px">${(c.description||'').slice(0,60)}${(c.description||'').length>60?'…':''}</td>
         <td>${statusBadge(c.status)}${c.resolved_by_name?`<br><span style="font-size:10px;color:var(--text3)">by ${c.resolved_by_name}</span>`:''}</td>
@@ -1307,7 +1321,7 @@ function renderSettings() {
       ${shifts.length ? shifts.map(s=>`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
           <div><div style="font-weight:500;font-size:13px">${s.name}</div>
-            <div style="font-size:12px;color:var(--text3);font-family:'IBM Plex Mono',monospace">${s.start_time} – ${s.end_time} NST · ${s.break_minutes}min break</div>
+            <div style="font-size:12px;color:var(--text3);font-family:var(--mono)">${s.start_time} – ${s.end_time} NST · ${s.break_minutes}min break</div>
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-sm" data-edit-shift="${s.id}" data-shift='${JSON.stringify(s)}'>Edit</button>
@@ -1343,7 +1357,7 @@ function renderProfile() {
         ${[['Employee ID',me.employee_code||me.id],['Role',me.role.replace(/_/g,' ')],['Timezone','NST (UTC+5:45)']].map(([k,v])=>`
           <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px">
             <span style="color:var(--text2)">${k}</span>
-            <span style="font-weight:500;font-family:'IBM Plex Mono',monospace;font-size:12px">${v}</span>
+            <span style="font-weight:500;font-family:var(--mono);font-size:12px">${v}</span>
           </div>`).join('')}
       </div>
     </div>
@@ -1404,6 +1418,20 @@ function attachEvents() {
 
   document.getElementById('logout-btn')?.addEventListener('click', logout);
   document.querySelectorAll('[data-nav]').forEach(el=>el.addEventListener('click',()=>nav(el.dataset.nav)));
+
+  // Admin salary status dropdown
+  document.querySelectorAll('.sal-status-sel').forEach(sel => sel.addEventListener('change', async () => {
+    const id     = sel.dataset.salid;
+    const status = sel.value;
+    // Update select color immediately for feedback
+    sel.style.color = status==='paid_out' ? 'var(--green2)' : status==='processing' ? 'var(--amber)' : 'var(--text3)';
+    sel.style.background = status==='paid_out' ? 'rgba(16,185,129,.1)' : status==='processing' ? 'rgba(245,158,11,.08)' : '';
+    sel.style.borderColor = status==='paid_out' ? 'rgba(16,185,129,.3)' : status==='processing' ? 'rgba(245,158,11,.3)' : '';
+    try {
+      await apiPut('/salary/' + id + '/status', { status });
+      toast('Salary status updated.', 'success');
+    } catch(e) { toast(e.message, 'error'); }
+  }));
 
   // Clock In / Out
   document.getElementById('clockin-btn')?.addEventListener('click', async () => {
@@ -1605,7 +1633,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     <!-- SESSION PICKER — shown for wrong_time and missed_clock_out -->
     <div id="m-c-session-wrap" class="form-group" style="display:none">
       <label class="form-label">WHICH SESSION IS WRONG? (TODAY)</label>
-      <select class="form-input" id="m-c-session" style="font-family:'IBM Plex Mono'">
+      <select class="form-input" id="m-c-session" style="font-family:var(--mono)">
         <option value="">— Select the wrong session —</option>
         ${sessionOptions}
       </select>
@@ -1618,12 +1646,12 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     <div id="m-c-timefields" style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:12px">
       <div id="m-c-infield" class="form-group" style="margin-bottom:10px">
         <label class="form-label" id="m-c-inlabel">WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)</label>
-        <input class="form-input" id="m-c-clockin" type="datetime-local" style="font-family:'IBM Plex Mono'">
+        <input class="form-input" id="m-c-clockin" type="datetime-local" style="font-family:var(--mono)">
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Leave blank if not applicable</div>
       </div>
       <div id="m-c-outfield" class="form-group" style="margin:0;display:none">
         <label class="form-label">WHAT TIME DID YOU ACTUALLY CLOCK OUT? (NST)</label>
-        <input class="form-input" id="m-c-clockout" type="datetime-local" style="font-family:'IBM Plex Mono'">
+        <input class="form-input" id="m-c-clockout" type="datetime-local" style="font-family:var(--mono)">
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Leave blank if not applicable</div>
       </div>
     </div>
@@ -1702,9 +1730,9 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       wrap.innerHTML = allSessions.length ? allSessions.map((s,i) => `
         <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;padding:8px;background:var(--surface3);border-radius:6px;margin-bottom:6px" data-sid="${s.id}">
           <span style="font-size:11px;color:var(--text3);font-weight:600">#${i+1}</span>
-          <input type="datetime-local" class="form-input s-in" style="font-family:'IBM Plex Mono';font-size:12px;padding:6px 8px"
+          <input type="datetime-local" class="form-input s-in" style="font-family:var(--mono);font-size:12px;padding:6px 8px"
             value="${s.clock_in ? s.clock_in.toString().slice(0,16).replace(' ','T') : ''}">
-          <input type="datetime-local" class="form-input s-out" style="font-family:'IBM Plex Mono';font-size:12px;padding:6px 8px"
+          <input type="datetime-local" class="form-input s-out" style="font-family:var(--mono);font-size:12px;padding:6px 8px"
             value="${s.clock_out ? s.clock_out.toString().slice(0,16).replace(' ','T') : ''}">
           <button onclick="window._delSession(${s.id})" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px">✕</button>
         </div>`).join('') : '<div style="font-size:12px;color:var(--text3);padding:8px">No sessions for this day yet.</div>';
@@ -1725,7 +1753,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       <!-- Employee request -->
       <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:14px;border-left:3px solid var(--accent2)">
         <div style="font-size:10px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:4px">EMPLOYEE REQUESTED</div>
-        <div style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono'">${desc || '(no time specified)'}</div>
+        <div style="font-size:12px;color:var(--text2);font-family:var(--mono)">${desc || '(no time specified)'}</div>
       </div>
 
       <!-- Session list editor -->
@@ -1741,12 +1769,12 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
           <div class="form-group" style="margin:0">
             <label class="form-label">CLOCK IN (NST)</label>
             <input class="form-input" id="m-cor-in" type="datetime-local"
-              style="font-family:'IBM Plex Mono'" value="${prefilledIn}">
+              style="font-family:var(--mono)" value="${prefilledIn}">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">CLOCK OUT (NST)</label>
             <input class="form-input" id="m-cor-out" type="datetime-local"
-              style="font-family:'IBM Plex Mono'" value="${prefilledOut}">
+              style="font-family:var(--mono)" value="${prefilledOut}">
           </div>
         </div>
       </div>

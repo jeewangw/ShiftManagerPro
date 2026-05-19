@@ -74,19 +74,21 @@ async function compute(req, res) {
       // OT threshold to reset after a mid-day clock-out/clock-in cycle.
       // We also include any still-open sessions (clock_out IS NULL) via
       // TIMESTAMPDIFF so a compute triggered mid-day is still accurate.
-      // Use attendance.total_minutes — correctly accumulated on each clock-out.
-      // We avoid TIMESTAMPDIFF(clock_in, NOW()) because clock_in is stored in
-      // Nepal time (+05:45) while the DB connection uses UTC, which produces
-      // negative durations for employees clocked in before 05:45 UTC.
-      // For any session still open at compute time, we cap it at 0 extra minutes
-      // (salary should only be computed on completed days).
       const [days] = await db.execute(
-        `SELECT work_date, total_minutes AS day_minutes
-           FROM attendance
-          WHERE user_id = ?
-            AND MONTH(work_date) = ?
-            AND YEAR(work_date)  = ?
-            AND total_minutes    > 0`,
+        `SELECT a.work_date,
+                SUM(
+                  TIMESTAMPDIFF(
+                    MINUTE,
+                    cs.clock_in,
+                    COALESCE(cs.clock_out, NOW())
+                  )
+                ) AS day_minutes
+           FROM attendance a
+           JOIN clock_sessions cs ON cs.attendance_id = a.id
+          WHERE a.user_id = ?
+            AND MONTH(a.work_date) = ?
+            AND YEAR(a.work_date)  = ?
+          GROUP BY a.work_date`,
         [emp.id, month, year]
       );
 
@@ -117,21 +119,28 @@ async function compute(req, res) {
       // extraPay = the OT premium above the flat hourly rate for all hours
       const extraPay = totalPay - (totalHours * emp.hourly_rate);
 
+      // computed_up_to = last day of the month, or today if current month
+      const lastDay = new Date(year, month, 0).getDate();
+      const nowNPDate = nowNepal().toISOString().slice(0,10);
+      const isCurrentMonth = (nowNepal().getFullYear() === year && (nowNepal().getMonth()+1) === month);
+      const computedUpTo = isCurrentMonth ? nowNPDate : `${year}-${String(month).padStart(2,'0')}-${lastDay}`;
+
       await db.execute(`
         INSERT INTO salary_records 
-          (user_id, branch_id, month, year, hourly_rate, total_hours, regular_hours, extra_hours, base_salary, extra_pay)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (user_id, branch_id, month, year, hourly_rate, total_hours, regular_hours, extra_hours, base_salary, extra_pay, computed_up_to, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'not_processed')
         ON DUPLICATE KEY UPDATE
-          hourly_rate = VALUES(hourly_rate),
-          total_hours = VALUES(total_hours),
-          regular_hours = VALUES(regular_hours),
-          extra_hours = VALUES(extra_hours),
-          base_salary = VALUES(base_salary),
-          extra_pay = VALUES(extra_pay),
-          computed_at = NOW()
+          hourly_rate    = VALUES(hourly_rate),
+          total_hours    = VALUES(total_hours),
+          regular_hours  = VALUES(regular_hours),
+          extra_hours    = VALUES(extra_hours),
+          base_salary    = VALUES(base_salary),
+          extra_pay      = VALUES(extra_pay),
+          computed_up_to = VALUES(computed_up_to),
+          computed_at    = NOW()
       `, [
-        emp.id, emp.branch_id, month, year, emp.hourly_rate, 
-        totalHours, regHoursTotal, extraHoursTotal, totalPay, extraPay
+        emp.id, emp.branch_id, month, year, emp.hourly_rate,
+        totalHours, regHoursTotal, extraHoursTotal, totalPay, extraPay, computedUpTo
       ]);
 
       computed.push({ name: emp.full_name, totalHours, totalPay });
@@ -212,4 +221,25 @@ async function updateRate(req, res) {
   res.json({ message: 'Hourly rate updated.', user });
 }
 
-module.exports = { list, compute, mySalary, get, updateRate };
+// ── PUT /api/salary/:id/status  — update payment status ─────────────────────
+async function updateStatus(req, res) {
+  const { status } = req.body;
+  const validStatuses = ['not_processed', 'processing', 'paid_out'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be: not_processed, processing, or paid_out.' });
+  }
+
+  // Scope check for branch_admin
+  if (req.user.role === 'branch_admin') {
+    const [[rec]] = await db.execute(`SELECT branch_id FROM salary_records WHERE id = ?`, [req.params.id]);
+    if (!rec || rec.branch_id !== req.user.branch_id) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+  }
+
+  await db.execute(`UPDATE salary_records SET status = ? WHERE id = ?`, [status, req.params.id]);
+  const [[updated]] = await db.execute(`SELECT * FROM salary_records WHERE id = ?`, [req.params.id]);
+  res.json({ message: 'Salary status updated.', record: updated });
+}
+
+module.exports = { list, compute, mySalary, get, updateRate, updateStatus };
