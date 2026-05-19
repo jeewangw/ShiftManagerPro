@@ -193,11 +193,26 @@ async function employeeSummary(res, userId) {
 
   if (att) {
     const [rows] = await db.execute(
-      `SELECT id, clock_in, clock_out, duration_min FROM clock_sessions
+      `SELECT id, attendance_id, clock_in, clock_out, duration_min FROM clock_sessions
         WHERE attendance_id = ? ORDER BY clock_in ASC`, [att.id]
     );
     todaySessions = rows;
     openSession   = rows.find(s => !s.clock_out) || null;
+  }
+
+  // Cross-day check: if no open session in today's row,
+  // look for an open session from a previous day (e.g. clocked in at 23:00 yesterday)
+  if (!openSession) {
+    const [[prevOpen]] = await db.execute(`
+      SELECT cs.id, cs.attendance_id, cs.clock_in, cs.clock_out, cs.duration_min,
+             a.work_date
+        FROM clock_sessions cs
+        JOIN attendance a ON a.id = cs.attendance_id
+       WHERE cs.user_id = ? AND cs.clock_out IS NULL
+       ORDER BY cs.clock_in DESC
+       LIMIT 1
+    `, [userId]);
+    if (prevOpen) openSession = prevOpen;
   }
 
   const [[monthStats]] = await db.execute(`
@@ -242,7 +257,8 @@ async function employeeSummary(res, userId) {
 
   // Salary records (own, last 12 months)
   const [salaryHistory] = await db.execute(`
-    SELECT month, year, hourly_rate, total_hours, base_salary, currency, computed_at
+    SELECT month, year, hourly_rate, total_hours, regular_hours, extra_hours,
+           base_salary, extra_pay, currency, computed_at, computed_up_to, status
       FROM salary_records
      WHERE user_id = ?
      ORDER BY year DESC, month DESC LIMIT 12
@@ -258,27 +274,26 @@ async function employeeSummary(res, userId) {
     `SELECT hourly_rate FROM users WHERE id = ?`, [userId]
   );
 
-  // Fetch today's attendance for the branch — for the "Who's Working Now" widget
-  const [[empBranch]] = await db.execute(`SELECT branch_id FROM users WHERE id = ?`, [userId]);
-  const branchId = empBranch?.branch_id;
-  let liveToday = [];
-  if (branchId) {
-    const [liveRows] = await db.execute(`
+  // Fetch today's attendance across ALL branches for the "Who's Working Now" widget
+  // Wrapped in subquery so we can ORDER BY the computed current_clock_in alias
+  const [liveToday] = await db.execute(`
+    SELECT * FROM (
       SELECT u.id AS user_id, u.full_name, u.employee_code,
+             b.name AS branch_name,
              a.total_minutes, a.status,
              s.name AS shift_name,
              (SELECT cs.clock_in FROM clock_sessions cs
                 WHERE cs.attendance_id = a.id AND cs.clock_out IS NULL
                 ORDER BY cs.clock_in DESC LIMIT 1) AS current_clock_in
         FROM attendance a
-        JOIN users u ON u.id = a.user_id
+        JOIN users    u ON u.id  = a.user_id
+        JOIN branches b ON b.id  = a.branch_id
         LEFT JOIN employee_shifts es ON es.user_id = u.id AND es.effective_to IS NULL
-        LEFT JOIN shifts s ON s.id = es.shift_id
-       WHERE a.branch_id = ? AND a.work_date = ?
-       ORDER BY u.full_name
-    `, [branchId, todayNP]);
-    liveToday = liveRows;
-  }
+        LEFT JOIN shifts           s ON s.id = es.shift_id
+       WHERE a.work_date = ? AND u.role = 'employee' AND u.is_active = 1
+    ) t
+    ORDER BY current_clock_in IS NULL, current_clock_in DESC, full_name
+  `, [todayNP]);
 
   res.json({
     role: 'employee',
