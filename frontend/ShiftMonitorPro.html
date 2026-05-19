@@ -1377,26 +1377,44 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
 
   // Corrections — loads sessions for selected date so employee can pick the wrong one
   const openCorrectionModal = async () => {
-    // Pre-load today's attendance sessions to show in the picker
     let todaySessions = [];
-    try {
-      const att = await apiGet('/attendance/my-status');
-      todaySessions = att.sessions || [];
-    } catch(_) {}
+
+    // Loads sessions for a given date and rebuilds the session picker
+    const loadSessionsForDate = async (dateStr) => {
+      todaySessions = [];
+      try {
+        const att = await apiGet('/attendance?limit=1&from=' + dateStr + '&to=' + dateStr);
+        todaySessions = att?.data?.[0]?.sessions || [];
+      } catch(_) {}
+      const sel = document.getElementById('m-c-session');
+      if (!sel) return;
+      sel.innerHTML = todaySessions.length
+        ? '<option value="">— Select the wrong session —</option>' +
+          todaySessions.map((s, i) => `
+            <option value="${s.id}">
+              #${i+1}  ${s.clock_in ? s.clock_in.toString().slice(11,16) : '?'} → ${s.clock_out ? s.clock_out.toString().slice(11,16) : 'Active'}
+              ${s.duration_min ? ' (' + Math.floor(s.duration_min/60) + 'h ' + s.duration_min%60 + 'm)' : ''}
+            </option>`).join('')
+        : '<option value="">No sessions found for this date</option>';
+    };
+
+    // Load today's sessions initially
+    await loadSessionsForDate(fmtNSTDate());
 
     const sessionOptions = todaySessions.length
-      ? todaySessions.map((s, i) => `
+      ? '<option value="">— Select the wrong session —</option>' +
+        todaySessions.map((s, i) => `
           <option value="${s.id}">
             #${i+1}  ${s.clock_in ? s.clock_in.toString().slice(11,16) : '?'} → ${s.clock_out ? s.clock_out.toString().slice(11,16) : 'Active'}
             ${s.duration_min ? ' ('+Math.floor(s.duration_min/60)+'h '+s.duration_min%60+'m)' : ''}
           </option>`).join('')
-      : '<option value="">No sessions found for today</option>';
+      : '<option value="">No sessions found for this date</option>';
 
     openModal('Request Attendance Correction', `
     <div class="form-group">
       <label class="form-label">DATE (NST)</label>
       <input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}"
-        onchange="document.getElementById('m-c-session-wrap').style.display='none';document.getElementById('m-c-session').value=''">
+        onchange="window._loadCorSessions(this.value).then(()=>{ const sw=document.getElementById('m-c-session-wrap'); if(sw && sw.style.display!=='none') sw.style.display='block'; })">
     </div>
     <div class="form-group">
       <label class="form-label">ISSUE TYPE</label>
@@ -1503,6 +1521,9 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     S.data.corrections = await apiGet('/corrections');
     render();
   });
+
+  // Expose globally so the date input onchange can call it
+  window._loadCorSessions = loadSessionsForDate;
   };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
