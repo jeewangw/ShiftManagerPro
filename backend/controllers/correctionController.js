@@ -195,4 +195,31 @@ async function reject(req, res) {
   res.json({ message: 'Correction rejected.', correction: updated });
 }
 
-module.exports = { list, get, create, approve, reject };
+// DELETE /api/corrections/:id
+async function remove(req, res) {
+  const { id: callerId, role } = req.user;
+  const { id } = req.params;
+
+  const [[cr]] = await db.execute(
+    `SELECT * FROM correction_requests WHERE id = ?`, [id]
+  );
+  if (!cr) return res.status(404).json({ error: 'Not found.' });
+
+  // Employees can only delete their own pending requests
+  if (role === 'employee') {
+    if (cr.user_id !== callerId)
+      return res.status(403).json({ error: 'Access denied.' });
+    if (cr.status !== 'pending')
+      return res.status(400).json({ error: 'Only pending requests can be deleted.' });
+  }
+
+  // Branch admin can only delete requests in their branch
+  if (role === 'branch_admin' && cr.branch_id !== req.user.branch_id) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+
+  await db.execute(`DELETE FROM correction_requests WHERE id = ?`, [id]);
+  res.json({ message: 'Correction request deleted.' });
+}
+
+module.exports = { list, get, create, approve, reject, remove };

@@ -1292,18 +1292,25 @@ function renderCorrections() {
         <td><span class="badge badge-blue" style="font-size:10px;text-transform:capitalize">${c.issue_type.replace(/_/g,' ')}</span></td>
         <td style="color:var(--text2);font-size:12px;max-width:200px">${(c.description||'').slice(0,60)}${(c.description||'').length>60?'…':''}</td>
         <td>${statusBadge(c.status)}${c.resolved_by_name?`<br><span style="font-size:10px;color:var(--text3)">by ${c.resolved_by_name}</span>`:''}</td>
-        <td>${c.status==='pending'&&isAdmin?`
+        <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-sm btn-success"
-              data-approve="${c.id}"
-              data-date="${c.work_date}"
-              data-emp="${c.full_name}"
-              data-userid="${c.user_id}"
-              data-desc="${(c.description||'').replace(/"/g,'&quot;')}"
-              data-issuetype="${c.issue_type}"
-              data-sessionid="${c.session_id||''}">✓ Approve</button>
-            <button class="btn btn-sm btn-danger"  data-reject="${c.id}">✗ Reject</button>
-          </div>` : '—'}</td>
+            ${c.status==='pending'&&isAdmin?`
+              <button class="btn btn-sm btn-success"
+                data-approve="${c.id}"
+                data-date="${c.work_date}"
+                data-emp="${c.full_name}"
+                data-userid="${c.user_id}"
+                data-desc="${(c.description||'').replace(/"/g,'&quot;')}"
+                data-issuetype="${c.issue_type}"
+                data-sessionid="${c.session_id||''}">✓ Approve</button>
+              <button class="btn btn-sm btn-danger" data-reject="${c.id}">✗ Reject</button>
+            `:''}
+            ${(c.status==='pending' && (isAdmin || c.user_id===S.user?.id))?`
+              <button class="btn btn-sm" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)"
+                data-delete-correction="${c.id}">🗑 Delete</button>
+            `:''}
+          </div>
+        </td>
       </tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty"><div class="empty-icon">✏️</div><div class="empty-text">No correction requests</div></div>'}
   </div>`;
@@ -1603,16 +1610,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
         const descField   = document.getElementById('m-c-descfield');
         const sessionWrap = document.getElementById('m-c-session-wrap');
         const inLabel     = document.getElementById('m-c-inlabel');
-        if (t === 'missed_clock_in') {
-          timeFields.style.display='block'; inField.style.display='block';
-          outField.style.display='none'; descField.style.display='none';
-          sessionWrap.style.display='none';
-          inLabel.textContent='WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)';
-        } else if (t === 'missed_clock_out') {
-          timeFields.style.display='block'; inField.style.display='none';
-          outField.style.display='block'; descField.style.display='none';
-          sessionWrap.style.display='block';
-        } else if (t === 'wrong_time') {
+        if (t === 'wrong_time') {
           timeFields.style.display='block'; inField.style.display='block';
           outField.style.display='block'; descField.style.display='none';
           sessionWrap.style.display='block';
@@ -1622,11 +1620,8 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
           sessionWrap.style.display='none';
         }
       ">
-        <option value="missed_clock_in">Missed clock-in</option>
-        <option value="missed_clock_out">Missed clock-out</option>
         <option value="wrong_time">Wrong time recorded</option>
         <option value="technical_error">Technical error</option>
-        <option value="other">Other</option>
       </select>
     </div>
 
@@ -1674,7 +1669,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     const sessionId  = document.getElementById('m-c-session')?.value || null;
 
     let description = freeText;
-    if (['missed_clock_in','missed_clock_out','wrong_time'].includes(issueType)) {
+    if (['wrong_time'].includes(issueType)) {
       const parts = [];
       if (clockIn)  parts.push('Requested clock-in: '  + clockIn.replace('T',' '));
       if (clockOut) parts.push('Requested clock-out: ' + clockOut.replace('T',' '));
@@ -1843,6 +1838,16 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
   }));
   document.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click',async()=>{
     try { await apiPut('/corrections/'+btn.dataset.reject+'/reject',{}); toast('Rejected','info'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
+  }));
+
+  document.querySelectorAll('[data-delete-correction]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this correction request? This cannot be undone.')) return;
+    try {
+      await apiDelete('/corrections/' + btn.dataset.deleteCorrection);
+      toast('Correction request deleted.', 'success');
+      S.data.corrections = await apiGet('/corrections');
+      render();
+    } catch(e) { toast(e.message, 'error'); }
   }));
 
   // Attendance filter

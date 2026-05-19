@@ -10,5 +10,6 @@ router.get('/:id',             ctrl.get);
 router.post('/',               authorize('employee', 'branch_admin', 'super_admin'), ctrl.create);
 router.put('/:id/approve',     authorize('super_admin', 'branch_admin'), ctrl.approve);
 router.put('/:id/reject',      authorize('super_admin', 'branch_admin'), ctrl.reject);
+router.delete('/:id',          ctrl.remove);  // employee can delete own pending; admin can delete any
 
 module.exports = router;
