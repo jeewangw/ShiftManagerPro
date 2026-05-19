@@ -1135,11 +1135,10 @@ function renderCorrections() {
               data-approve="${c.id}"
               data-date="${c.work_date}"
               data-emp="${c.full_name}"
+              data-userid="${c.user_id}"
               data-desc="${(c.description||'').replace(/"/g,'&quot;')}"
               data-issuetype="${c.issue_type}"
-              data-sessionid="${c.session_id||''}"
-              data-existin="${c.existing_clock_in ? c.existing_clock_in.toString().slice(0,16).replace(' ','T') : ''}"
-              data-existout="${c.existing_clock_out ? c.existing_clock_out.toString().slice(0,16).replace(' ','T') : ''}">✓ Approve</button>
+              data-sessionid="${c.session_id||''}">✓ Approve</button>
             <button class="btn btn-sm btn-danger"  data-reject="${c.id}">✗ Reject</button>
           </div>` : '—'}</td>
       </tr>`).join('')}</tbody>
@@ -1507,88 +1506,84 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
   };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
-  document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => {
-    const cid       = btn.dataset.approve;
-    const date      = btn.dataset.date;
-    const emp       = btn.dataset.emp;
-    const issueType = btn.dataset.issuetype || '';
-    const desc      = btn.dataset.desc || '';
-    const sessionId = btn.dataset.sessionid || '';
-    const existIn   = btn.dataset.existin  || '';  // existing wrong clock-in
-    const existOut  = btn.dataset.existout || '';  // existing wrong clock-out
+  document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
+    const cid  = btn.dataset.approve;
+    const date = btn.dataset.date;
+    const emp  = btn.dataset.emp;
+    const desc = btn.dataset.desc || '';
 
     // Parse employee-submitted correct times from description
-    let prefilledIn  = '';
-    let prefilledOut = '';
+    let prefilledIn = '', prefilledOut = '';
     const inMatch  = desc.match(/Requested clock-in:\s*([\d\-]+ [\d:]+)/);
     const outMatch = desc.match(/Requested clock-out:\s*([\d\-]+ [\d:]+)/);
-    if (inMatch)  prefilledIn  = inMatch[1].trim().replace(' ', 'T').slice(0, 16);
-    if (outMatch) prefilledOut = outMatch[1].trim().replace(' ', 'T').slice(0, 16);
+    if (inMatch)  prefilledIn  = inMatch[1].trim().replace(' ','T').slice(0,16);
+    if (outMatch) prefilledOut = outMatch[1].trim().replace(' ','T').slice(0,16);
 
-    const hasExistingSession = existIn || existOut;
-    const hasPrefilledTimes  = prefilledIn || prefilledOut;
+    // Fetch all sessions for this employee+date so admin can manage them
+    let allSessions = [];
+    try {
+      const att = await apiGet('/attendance?user_id=' + btn.dataset.userid + '&from=' + date + '&to=' + date);
+      allSessions = att?.data?.[0]?.sessions || [];
+    } catch(_) {}
 
-    openModal(`Approve Correction — ${emp} (${date})`, `
-      <!-- Employee's original request -->
-      <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:14px;border-left:3px solid var(--accent2)">
-        <div style="font-size:10px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:6px">EMPLOYEE REQUESTED</div>
+    const renderSessions = () => {
+      const wrap = document.getElementById('m-cor-sessions');
+      if (!wrap) return;
+      wrap.innerHTML = allSessions.length ? allSessions.map((s,i) => `
+        <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;padding:8px;background:var(--surface3);border-radius:6px;margin-bottom:6px" data-sid="${s.id}">
+          <span style="font-size:11px;color:var(--text3);font-weight:600">#${i+1}</span>
+          <input type="datetime-local" class="form-input s-in" style="font-family:'IBM Plex Mono';font-size:12px;padding:6px 8px"
+            value="${s.clock_in ? s.clock_in.toString().slice(0,16).replace(' ','T') : ''}">
+          <input type="datetime-local" class="form-input s-out" style="font-family:'IBM Plex Mono';font-size:12px;padding:6px 8px"
+            value="${s.clock_out ? s.clock_out.toString().slice(0,16).replace(' ','T') : ''}">
+          <button onclick="window._delSession(${s.id})" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:12px">✕</button>
+        </div>`).join('') : '<div style="font-size:12px;color:var(--text3);padding:8px">No sessions for this day yet.</div>';
+    };
+
+    // Global helpers for inline delete (called from onclick in rendered HTML)
+    window._delSession = async (sid) => {
+      if (!confirm('Delete this session?')) return;
+      try {
+        await apiDelete('/attendance/session/' + sid);
+        allSessions = allSessions.filter(s => s.id !== sid);
+        renderSessions();
+        toast('Session deleted.', 'success');
+      } catch(e) { toast(e.message, 'error'); }
+    };
+
+    openModal(`Manage Sessions — ${emp} (${date})`, `
+      <!-- Employee request -->
+      <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:14px;border-left:3px solid var(--accent2)">
+        <div style="font-size:10px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:4px">EMPLOYEE REQUESTED</div>
         <div style="font-size:12px;color:var(--text2);font-family:'IBM Plex Mono'">${desc || '(no time specified)'}</div>
       </div>
 
-      <!-- OPTION 1: Correct session times -->
+      <!-- Session list editor -->
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.08em;margin-bottom:8px">
+        ALL SESSIONS FOR ${date} — Edit times inline, or delete unwanted sessions
+      </div>
+      <div id="m-cor-sessions" style="margin-bottom:14px"></div>
+
+      <!-- Add new session -->
       <div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:700;color:var(--accent2);letter-spacing:.08em;margin-bottom:10px">
-          OPTION 1 — CORRECT SESSION TIMES
-          ${hasPrefilledTimes ? '<span style="color:var(--green2);font-weight:400;margin-left:8px">✓ Pre-filled from request</span>' : ''}
-        </div>
-
-        ${hasExistingSession ? `
-        <!-- Show existing wrong times -->
-        <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:10px;margin-bottom:12px">
-          <div style="font-size:10px;font-weight:700;color:#ef4444;letter-spacing:.06em;margin-bottom:6px">EXISTING (WRONG) SESSION</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:'IBM Plex Mono';font-size:12px;color:var(--text2)">
-            <div><span style="color:var(--text3)">IN: </span>${existIn ? existIn.replace('T',' ') : '—'}</div>
-            <div><span style="color:var(--text3)">OUT: </span>${existOut ? existOut.replace('T',' ') : '—'}</div>
-          </div>
-        </div>
-        ` : ''}
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--green2);letter-spacing:.08em;margin-bottom:10px">+ ADD NEW SESSION</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group" style="margin:0">
-            <label class="form-label">CORRECT CLOCK IN (NST)</label>
+            <label class="form-label">CLOCK IN (NST)</label>
             <input class="form-input" id="m-cor-in" type="datetime-local"
               style="font-family:'IBM Plex Mono'" value="${prefilledIn}">
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label">CORRECT CLOCK OUT (NST)</label>
+            <label class="form-label">CLOCK OUT (NST)</label>
             <input class="form-input" id="m-cor-out" type="datetime-local"
               style="font-family:'IBM Plex Mono'" value="${prefilledOut}">
           </div>
         </div>
-
-        <!-- Replace vs Add toggle — only shown when a wrong session exists -->
-        ${hasExistingSession ? `
-        <div style="padding-top:10px;border-top:1px solid var(--border)">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-            <input type="checkbox" id="m-cor-replace" checked
-              style="margin-top:2px;width:16px;height:16px;accent-color:#ef4444;flex-shrink:0">
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--text1)">Replace existing wrong session</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">
-                Checked: deletes the wrong session and inserts the corrected one.<br>
-                Unchecked: keeps the wrong session and adds the corrected one alongside it.
-              </div>
-            </div>
-          </label>
-        </div>` : `
-        <div style="font-size:11px;color:var(--text3)">
-          A new corrected session will be inserted and the day total recalculated.
-        </div>`}
       </div>
 
-      <!-- OPTION 2: Override total directly -->
+      <!-- Override total -->
       <div style="background:var(--surface2);border-radius:8px;padding:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.08em;margin-bottom:10px">OPTION 2 — OVERRIDE TOTAL HOURS DIRECTLY</div>
+        <div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.08em;margin-bottom:10px">OVERRIDE TOTAL HOURS DIRECTLY</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="form-group" style="margin:0">
             <label class="form-label">HOURS</label>
@@ -1599,49 +1594,54 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
             <input class="form-input" id="m-cor-min" type="number" min="0" max="59" step="1" placeholder="e.g. 30">
           </div>
         </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-            <input type="checkbox" id="m-cor-erase"
-              style="margin-top:2px;width:16px;height:16px;accent-color:var(--amber);flex-shrink:0">
-            <div>
-              <div style="font-size:12px;font-weight:600;color:var(--text1)">Erase all existing sessions for this day</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">Removes all clock records and replaces with this total only.</div>
-            </div>
-          </label>
-        </div>
       </div>
-    `, 'Approve & Apply Fix', async () => {
-      const clockIn       = document.getElementById('m-cor-in')?.value;
-      const clockOut      = document.getElementById('m-cor-out')?.value;
-      const hrs           = parseInt(document.getElementById('m-cor-hrs')?.value)  || 0;
-      const mins          = parseInt(document.getElementById('m-cor-min')?.value)  || 0;
-      const totalMins     = (hrs * 60) + mins;
-      const replaceSession = document.getElementById('m-cor-replace')?.checked ?? true;
-      const eraseSessions  = document.getElementById('m-cor-erase')?.checked || false;
-
-      const hasSession = clockIn && clockOut;
-      const hasTotal   = totalMins > 0;
-
-      if (hasSession && hasTotal) {
-        toast('Please use only one option — session OR total hours, not both.', 'error'); return;
-      }
-      if (hasSession && new Date(clockOut) <= new Date(clockIn)) {
-        toast('Clock-out must be after clock-in.', 'error'); return;
-      }
-
-      const body = hasSession
-        ? { clock_in: clockIn.replace('T',' ') + ':00', clock_out: clockOut.replace('T',' ') + ':00', replace_session: replaceSession }
-        : hasTotal
-          ? { total_minutes: totalMins, erase_sessions: eraseSessions }
-          : {};
-
+    `, 'Save & Approve', async () => {
       try {
-        await apiPut('/corrections/' + cid + '/approve', body);
-        toast('Correction approved' + (hasSession || hasTotal ? ' and attendance updated.' : '.'), 'success');
+        // 1. Save edits to existing sessions
+        const sessionRows = document.querySelectorAll('#m-cor-sessions [data-sid]');
+        for (const row of sessionRows) {
+          const sid    = row.dataset.sid;
+          const inVal  = row.querySelector('.s-in')?.value;
+          const outVal = row.querySelector('.s-out')?.value;
+          if (inVal) {
+            await apiPut('/attendance/session/' + sid, {
+              clock_in:  inVal.replace('T',' ') + ':00',
+              clock_out: outVal ? outVal.replace('T',' ') + ':00' : null,
+            });
+          }
+        }
+
+        // 2. Add new session if provided
+        const newIn  = document.getElementById('m-cor-in')?.value;
+        const newOut = document.getElementById('m-cor-out')?.value;
+        if (newIn && newOut) {
+          if (new Date(newOut) <= new Date(newIn)) { toast('Clock-out must be after clock-in.','error'); return; }
+          await apiPut('/corrections/' + cid + '/approve', {
+            clock_in:  newIn.replace('T',' ')  + ':00',
+            clock_out: newOut.replace('T',' ') + ':00',
+          });
+        }
+
+        // 3. Override total if provided
+        const hrs  = parseInt(document.getElementById('m-cor-hrs')?.value) || 0;
+        const mins = parseInt(document.getElementById('m-cor-min')?.value) || 0;
+        if (hrs || mins) {
+          await apiPut('/corrections/' + cid + '/approve', { total_minutes: hrs * 60 + mins });
+        }
+
+        // 4. If nothing else was done, just approve
+        if (!newIn && !newOut && !hrs && !mins) {
+          await apiPut('/corrections/' + cid + '/approve', {});
+        }
+
+        toast('Sessions updated and correction approved.', 'success');
         S.data.corrections = await apiGet('/corrections');
         render();
       } catch(e) { toast(e.message, 'error'); }
     });
+
+    // Render sessions after modal opens
+    setTimeout(renderSessions, 50);
   }));
   document.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click',async()=>{
     try { await apiPut('/corrections/'+btn.dataset.reject+'/reject',{}); toast('Rejected','info'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}

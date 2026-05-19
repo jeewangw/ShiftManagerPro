@@ -386,4 +386,67 @@ async function update(req, res) {
   res.json(updated);
 }
 
-module.exports = { list, today, clockIn, clockOut, myStatus, stats, get, update };
+// ── PUT /api/attendance/session/:id  (admin edits a specific clock session) ──
+async function updateSession(req, res) {
+  const { clock_in, clock_out } = req.body;
+  const { id } = req.params;
+
+  await db.execute(
+    `UPDATE clock_sessions SET
+       clock_in  = COALESCE(?, clock_in),
+       clock_out = COALESCE(?, clock_out),
+       updated_at = NOW()
+     WHERE id = ?`,
+    [clock_in || null, clock_out || null, id]
+  );
+
+  // Recompute the attendance total for this session's parent row
+  const [[session]] = await db.execute(
+    `SELECT attendance_id FROM clock_sessions WHERE id = ?`, [id]
+  );
+  if (session) {
+    await db.execute(`
+      UPDATE attendance a
+         SET total_minutes = (
+               SELECT COALESCE(SUM(duration_min), 0)
+                 FROM clock_sessions cs
+                WHERE cs.attendance_id = a.id
+                  AND cs.duration_min IS NOT NULL
+             ),
+             updated_at = NOW()
+       WHERE a.id = ?
+    `, [session.attendance_id]);
+  }
+
+  const [[updated]] = await db.execute(`SELECT * FROM clock_sessions WHERE id = ?`, [id]);
+  res.json(updated);
+}
+
+// ── DELETE /api/attendance/session/:id  (admin deletes a clock session) ───────
+async function deleteSession(req, res) {
+  const { id } = req.params;
+
+  const [[session]] = await db.execute(
+    `SELECT attendance_id FROM clock_sessions WHERE id = ?`, [id]
+  );
+  if (!session) return res.status(404).json({ error: 'Session not found.' });
+
+  await db.execute(`DELETE FROM clock_sessions WHERE id = ?`, [id]);
+
+  // Recompute the attendance total after deletion
+  await db.execute(`
+    UPDATE attendance a
+       SET total_minutes = (
+             SELECT COALESCE(SUM(duration_min), 0)
+               FROM clock_sessions cs
+              WHERE cs.attendance_id = a.id
+                AND cs.duration_min IS NOT NULL
+           ),
+           updated_at = NOW()
+     WHERE a.id = ?
+  `, [session.attendance_id]);
+
+  res.json({ message: 'Session deleted and total recalculated.' });
+}
+
+module.exports = { list, today, clockIn, clockOut, myStatus, stats, get, update, updateSession, deleteSession };

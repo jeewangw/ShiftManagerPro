@@ -14,6 +14,8 @@ router.get('/:id',        ctrl.get);
 router.post('/clock-in',  ctrl.clockIn);
 router.post('/clock-out', ctrl.clockOut);
 
-router.put('/:id', authorize('super_admin', 'branch_admin'), ctrl.update);
+router.put('/:id',           authorize('super_admin', 'branch_admin'), ctrl.update);
+router.put('/session/:id',    authorize('super_admin', 'branch_admin'), ctrl.updateSession);
+router.delete('/session/:id', authorize('super_admin', 'branch_admin'), ctrl.deleteSession);
 
 module.exports = router;
