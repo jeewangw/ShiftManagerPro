@@ -164,6 +164,38 @@ textarea.form-input{resize:vertical;min-height:80px}
   .grid-4{grid-template-columns:1fr 1fr}
   .grid-3{grid-template-columns:1fr 1fr}
   .grid-2{grid-template-columns:1fr}
+  /* Bottom nav for mobile employees */
+  .mobile-bottom-nav{display:flex}
+  .main{padding-bottom:68px}
+  .content{padding:16px}
+  .topbar{padding:0 16px}
+  .clock-widget{border-radius:12px}
+}
+@media(min-width:769px){
+  .mobile-bottom-nav{display:none!important}
+}
+.mobile-bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  height:64px;
+  background:var(--bg2);
+  border-top:1px solid var(--border);
+  z-index:100;
+  align-items:stretch;
+}
+.mob-nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;cursor:pointer;color:var(--text3);font-size:10px;font-weight:600;
+  letter-spacing:.03em;padding:6px 4px;transition:color .15s;position:relative;
+  border:none;background:none;
+}
+.mob-nav-item.active{color:var(--accent2)}
+.mob-nav-item.active .mob-nav-icon{color:var(--accent2)}
+.mob-nav-icon{font-size:20px;line-height:1}
+.mob-nav-badge{
+  position:absolute;top:6px;right:calc(50% - 14px);
+  background:var(--red2);color:#fff;font-size:9px;font-weight:700;
+  border-radius:8px;padding:1px 5px;min-width:16px;text-align:center;
 }
 </style>
 </head>
@@ -480,7 +512,11 @@ function renderApp() {
     </div>
     <div class="main">
       <div class="topbar">
-        <div class="page-title">${getPageTitle()}</div>
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <div class="page-title">${getPageTitle()}</div>
+          <!-- Show user name on mobile since sidebar is hidden -->
+          ${u.role==='employee' ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px" class="mobile-only">${u.full_name}</span>` : ''}
+        </div>
         <div style="display:flex;align-items:center;gap:10px">
           <div class="nst-badge">🕐 NST</div>
           <div style="width:1px;height:20px;background:var(--border)"></div>
@@ -491,7 +527,27 @@ function renderApp() {
       <div class="content" id="content">${renderPage()}</div>
     </div>
   </div>
+  ${u.role === 'employee' ? renderMobileBottomNav(pendingCount) : ''}
   ${renderModal()}`;
+}
+
+function renderMobileBottomNav(pendingCount) {
+  const items = [
+    { id:'dashboard',   icon:'⏱',  label:'Clock In'   },
+    { id:'attendance',  icon:'🗓',  label:'Attendance' },
+    { id:'salary',      icon:'💰',  label:'Salary'     },
+    { id:'live',        icon:'📡',  label:'Live'       },
+    { id:'corrections', icon:'✏️',  label:'Requests',  badge: pendingCount },
+  ];
+  return '<nav class="mobile-bottom-nav">' +
+    items.map(item =>
+      '<button class="mob-nav-item ' + (S.page===item.id?'active':'') + '" data-nav="' + item.id + '">' +
+        '<span class="mob-nav-icon">' + item.icon + '</span>' +
+        '<span>' + item.label + '</span>' +
+        (item.badge ? '<span class="mob-nav-badge">' + item.badge + '</span>' : '') +
+      '</button>'
+    ).join('') +
+  '</nav>';
 }
 
 function getNav(role) {
@@ -508,7 +564,7 @@ function getNav(role) {
     {label:'ADMIN', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Shift Settings'}]},
   ];
   return [
-    {label:'MY SHIFT', items:[{id:'dashboard',icon:'⏱',text:'Clock In / Out'},{id:'attendance',icon:'🗓',text:'My Attendance'}]},
+    {label:'MY SHIFT', items:[{id:'dashboard',icon:'⏱',text:'Clock In / Out'},{id:'attendance',icon:'🗓',text:'My Attendance'},{id:'live',icon:'📡',text:'Live Monitor'}]},
     {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'My Salary'}]},
     {label:'ACCOUNT', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'profile',icon:'👤',text:'My Profile'}]},
   ];
