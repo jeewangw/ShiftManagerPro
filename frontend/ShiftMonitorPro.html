@@ -1376,11 +1376,28 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     catch(e) { toast(e.message,'error'); }
   });
 
-  // Corrections
-  const openCorrectionModal = () => openModal('Request Attendance Correction', `
+  // Corrections — loads sessions for selected date so employee can pick the wrong one
+  const openCorrectionModal = async () => {
+    // Pre-load today's attendance sessions to show in the picker
+    let todaySessions = [];
+    try {
+      const att = await apiGet('/attendance/my-status');
+      todaySessions = att.sessions || [];
+    } catch(_) {}
+
+    const sessionOptions = todaySessions.length
+      ? todaySessions.map((s, i) => `
+          <option value="${s.id}">
+            #${i+1}  ${s.clock_in ? s.clock_in.toString().slice(11,16) : '?'} → ${s.clock_out ? s.clock_out.toString().slice(11,16) : 'Active'}
+            ${s.duration_min ? ' ('+Math.floor(s.duration_min/60)+'h '+s.duration_min%60+'m)' : ''}
+          </option>`).join('')
+      : '<option value="">No sessions found for today</option>';
+
+    openModal('Request Attendance Correction', `
     <div class="form-group">
       <label class="form-label">DATE (NST)</label>
-      <input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}">
+      <input class="form-input" id="m-cdate" type="date" value="${fmtNSTDate()}"
+        onchange="document.getElementById('m-c-session-wrap').style.display='none';document.getElementById('m-c-session').value=''">
     </div>
     <div class="form-group">
       <label class="form-label">ISSUE TYPE</label>
@@ -1390,20 +1407,25 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
         const inField     = document.getElementById('m-c-infield');
         const outField    = document.getElementById('m-c-outfield');
         const descField   = document.getElementById('m-c-descfield');
+        const sessionWrap = document.getElementById('m-c-session-wrap');
         const inLabel     = document.getElementById('m-c-inlabel');
         if (t === 'missed_clock_in') {
           timeFields.style.display='block'; inField.style.display='block';
           outField.style.display='none'; descField.style.display='none';
+          sessionWrap.style.display='none';
           inLabel.textContent='WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)';
         } else if (t === 'missed_clock_out') {
           timeFields.style.display='block'; inField.style.display='none';
           outField.style.display='block'; descField.style.display='none';
+          sessionWrap.style.display='block';
         } else if (t === 'wrong_time') {
           timeFields.style.display='block'; inField.style.display='block';
           outField.style.display='block'; descField.style.display='none';
+          sessionWrap.style.display='block';
           inLabel.textContent='CORRECT CLOCK IN TIME (NST)';
         } else {
           timeFields.style.display='none'; descField.style.display='block';
+          sessionWrap.style.display='none';
         }
       ">
         <option value="missed_clock_in">Missed clock-in</option>
@@ -1414,7 +1436,19 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       </select>
     </div>
 
-    <!-- TIME INPUT FIELDS (shown for time-related issues) -->
+    <!-- SESSION PICKER — shown for wrong_time and missed_clock_out -->
+    <div id="m-c-session-wrap" class="form-group" style="display:none">
+      <label class="form-label">WHICH SESSION IS WRONG? (TODAY)</label>
+      <select class="form-input" id="m-c-session" style="font-family:'IBM Plex Mono'">
+        <option value="">— Select the wrong session —</option>
+        ${sessionOptions}
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        Select the exact session that has the wrong time so the admin can replace it.
+      </div>
+    </div>
+
+    <!-- TIME INPUT FIELDS -->
     <div id="m-c-timefields" style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:12px">
       <div id="m-c-infield" class="form-group" style="margin-bottom:10px">
         <label class="form-label" id="m-c-inlabel">WHAT TIME DID YOU ACTUALLY CLOCK IN? (NST)</label>
@@ -1428,27 +1462,27 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       </div>
     </div>
 
-    <!-- TEXT DESCRIPTION (shown for other/technical issues) -->
+    <!-- TEXT DESCRIPTION -->
     <div id="m-c-descfield" class="form-group" style="display:none">
       <label class="form-label">DESCRIPTION</label>
       <textarea class="form-input" id="m-cdesc" placeholder="Describe the issue…" rows="3"></textarea>
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:4px">
-      Your request will be reviewed by an admin who can apply the fix directly.
+      Your request will be reviewed by an admin who will replace the wrong session directly.
     </div>
   `, 'Submit', async () => {
-    const issueType = document.getElementById('m-ctype').value;
-    const clockIn   = document.getElementById('m-c-clockin')?.value;
-    const clockOut  = document.getElementById('m-c-clockout')?.value;
-    const freeText  = document.getElementById('m-cdesc')?.value || '';
-    const workDate  = document.getElementById('m-cdate').value;
+    const issueType  = document.getElementById('m-ctype').value;
+    const clockIn    = document.getElementById('m-c-clockin')?.value;
+    const clockOut   = document.getElementById('m-c-clockout')?.value;
+    const freeText   = document.getElementById('m-cdesc')?.value || '';
+    const workDate   = document.getElementById('m-cdate').value;
+    const sessionId  = document.getElementById('m-c-session')?.value || null;
 
-    // Build a meaningful description from the time inputs
     let description = freeText;
     if (['missed_clock_in','missed_clock_out','wrong_time'].includes(issueType)) {
       const parts = [];
-      if (clockIn)  parts.push('Requested clock-in: ' + clockIn.replace('T',' '));
+      if (clockIn)  parts.push('Requested clock-in: '  + clockIn.replace('T',' '));
       if (clockOut) parts.push('Requested clock-out: ' + clockOut.replace('T',' '));
       if (!parts.length) { toast('Please enter at least one time value.','error'); return; }
       description = parts.join(' | ');
@@ -1456,9 +1490,21 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       if (!freeText.trim()) { toast('Please enter a description.','error'); return; }
     }
 
-    await apiPost('/corrections', { work_date: workDate, issue_type: issueType, description });
-    toast('Correction request submitted','success'); S.data.corrections = await apiGet('/corrections'); render();
+    // Find the attendance_id for the selected session
+    const selectedSession = todaySessions.find(s => String(s.id) === String(sessionId));
+
+    await apiPost('/corrections', {
+      work_date:     workDate,
+      issue_type:    issueType,
+      description,
+      session_id:    sessionId  ? parseInt(sessionId)              : null,
+      attendance_id: selectedSession ? selectedSession.attendance_id : null,
+    });
+    toast('Correction request submitted','success');
+    S.data.corrections = await apiGet('/corrections');
+    render();
   });
+  };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => {

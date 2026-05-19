@@ -123,11 +123,21 @@ async function approve(req, res) {
   );
 
   if (clock_in && clock_out) {
-    // If replacing: delete the specific wrong session the employee flagged
-    if (replace_session && cr.session_id) {
-      await db.execute(
-        `DELETE FROM clock_sessions WHERE id = ?`, [cr.session_id]
-      );
+    if (replace_session) {
+      if (cr.session_id) {
+        // Delete the exact session the employee flagged when submitting
+        await db.execute(
+          `DELETE FROM clock_sessions WHERE id = ?`, [cr.session_id]
+        );
+      } else {
+        // Fallback: delete the most recent session for this attendance row
+        // (covers older correction requests submitted before session picker existed)
+        await db.execute(
+          `DELETE FROM clock_sessions WHERE attendance_id = ?
+           ORDER BY clock_in DESC LIMIT 1`,
+          [att.id]
+        );
+      }
     }
 
     // Insert the corrected session

@@ -273,7 +273,7 @@ async function myStatus(req, res) {
 
   if (att) {
     const [rows] = await db.execute(
-      `SELECT id, clock_in, clock_out, duration_min FROM clock_sessions
+      `SELECT id, attendance_id, clock_in, clock_out, duration_min FROM clock_sessions
         WHERE attendance_id = ? ORDER BY clock_in ASC`, [att.id]
     );
     sessions    = rows;
