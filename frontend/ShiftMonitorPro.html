@@ -2212,7 +2212,7 @@ setInterval(async () => {
 (async () => {
   const ok = await tryRefresh();
   if (ok) {
-    // Start proactive refresh timer so token never expires during the session
+    // Start proactive refresh timer so token never expires during session
     _refreshTimer = setTimeout(tryRefresh, 14 * 60 * 1000);
     const me = await apiGet('/users/me').catch(()=>null);
     if (me) { S.user = me; await loadPage(); }
