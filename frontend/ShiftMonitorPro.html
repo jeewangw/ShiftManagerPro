@@ -198,6 +198,9 @@ textarea.form-input{resize:vertical;min-height:80px}
   border-radius:8px;padding:1px 5px;min-width:16px;text-align:center;
 }
 </style>
+<!-- jsPDF for client-side PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -338,6 +341,15 @@ async function nav(page) {
     const scrollY = (samePageRefresh && scroller) ? scroller.scrollTop : 0;
     existing.innerHTML = renderPage();
     if (scroller) scroller.scrollTop = scrollY;
+    // Sync nav active state
+    document.querySelectorAll('.nav-item[data-nav]').forEach(el => {
+      el.classList.toggle('active', el.dataset.nav === S.page);
+    });
+    document.querySelectorAll('.mob-nav-item[data-nav]').forEach(el => {
+      el.classList.toggle('active', el.dataset.nav === S.page);
+    });
+    const titleEl = document.querySelector('.page-title');
+    if (titleEl) titleEl.textContent = getPageTitle();
     attachEvents();
   } else {
     render();
@@ -446,6 +458,16 @@ function render() {
     existing.innerHTML = renderPage();
     // Restore scroll position after DOM update
     if (scroller) scroller.scrollTop = scrollY;
+    // Update active state on sidebar and mobile nav without full re-render
+    document.querySelectorAll('.nav-item[data-nav]').forEach(el => {
+      el.classList.toggle('active', el.dataset.nav === S.page);
+    });
+    document.querySelectorAll('.mob-nav-item[data-nav]').forEach(el => {
+      el.classList.toggle('active', el.dataset.nav === S.page);
+    });
+    // Update page title in topbar
+    const titleEl = document.querySelector('.page-title');
+    if (titleEl) titleEl.textContent = getPageTitle();
     attachEvents();
   } else {
     // First render — build the full shell
@@ -887,13 +909,16 @@ function renderEmployeeDash() {
                     ? '<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end"><span class="status-dot"></span><span style="font-size:11px;color:var(--green2);font-family:monospace">'+fmtTime(e.current_clock_in)+'</span></div>'
                     : '<span style="font-size:11px;color:var(--text3)">Clocked out</span>'}
                   <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtMins(e.total_minutes||0)}</div>
+                  ${e.work_date && e.work_date.toString().slice(0,10) !== (d.nepal_date||'')
+                    ? '<div style="font-size:10px;color:var(--amber);margin-top:2px">📅 yesterday</div>'
+                    : ''}
                 </div>
               </div>`).join('')}
             ${(d.live_today||[]).length > 8 ? `<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px">+${(d.live_today||[]).length-8} more colleagues working today</div>` : ''}
           </div>` : `
           <div class="empty" style="padding:20px">
             <div class="empty-icon">📡</div>
-            <div class="empty-text">No one clocked in yet today</div>
+            <div class="empty-text">No attendance records for today or yesterday</div>
           </div>`}
       </div>
 
@@ -909,8 +934,9 @@ function renderEmployeeDash() {
             <td>${statusBadge(r.status)}</td>
           </tr>`).join('')}</tbody>
         </table></div>` : '<div class="empty"><div class="empty-text">No history found.</div></div>'}
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="req-correction-btn">✏️ Request Correction</button>
+          <button class="btn" id="dash-pdf-btn" style="background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3)">⬇ Download Monthly PDF</button>
         </div>
       </div>
 
@@ -1071,11 +1097,31 @@ function renderAttendance() {
   <div class="card">
     <div class="card-header">
       <div><div class="card-title">Records (NST dates)</div></div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input class="form-input" type="date" id="att-from" style="width:140px;padding:6px 10px">
         <input class="form-input" type="date" id="att-to"   style="width:140px;padding:6px 10px">
         <button class="btn btn-sm btn-primary" id="att-filter-btn">Filter</button>
         <button class="btn btn-sm" id="att-refresh-btn" title="Refresh attendance data">↻</button>
+        ${S.user?.role === 'employee' ? `
+          <div style="width:1px;height:24px;background:var(--border)"></div>
+          <select class="form-input" id="att-pdf-month" style="padding:6px 8px;width:110px">
+            ${[...Array(12)].map((_,i)=>{
+              const m = i+1;
+              const now = nowNST();
+              const sel = m===(now.getMonth()+1) ? 'selected' : '';
+              return '<option value="'+m+'" '+sel+'>'+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]+'</option>';
+            }).join('')}
+          </select>
+          <select class="form-input" id="att-pdf-year" style="padding:6px 8px;width:90px">
+            ${[0,1,2].map(i=>{
+              const y = nowNST().getFullYear() - i;
+              return '<option value="'+y+'"'+(i===0?' selected':'')+'>'+y+'</option>';
+            }).join('')}
+          </select>
+          <button class="btn btn-sm" id="att-pdf-btn" style="background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.3);white-space:nowrap">
+            ⬇ PDF
+          </button>
+        ` : ''}
       </div>
     </div>
     ${rows.length ? `<div class="table-wrap"><table>
@@ -1412,6 +1458,166 @@ function openModal(title, body, confirmText, onConfirm) {
 function closeModal() { document.getElementById('modal-overlay')?.remove(); }
 
 // ============================================================
+// PDF GENERATION
+// ============================================================
+async function generateAttendancePDF(month, year) {
+  const monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+
+  // Fetch full month data for this employee
+  const pad = n => String(n).padStart(2,'0');
+  const from = year + '-' + pad(month) + '-01';
+  const lastDay = new Date(year, month, 0).getDate();
+  const to   = year + '-' + pad(month) + '-' + pad(lastDay);
+
+  toast('Generating PDF…', 'info');
+
+  let rows = [];
+  let stats = {};
+  try {
+    const att   = await apiGet('/attendance?limit=100&from=' + from + '&to=' + to);
+    const stts  = await apiGet('/attendance/stats?month=' + month + '&year=' + year);
+    rows  = att?.data || [];
+    stats = stts || {};
+  } catch(e) {
+    toast('Failed to fetch data: ' + e.message, 'error');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 14;
+
+  // ── Header ────────────────────────────────────────────────────────
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 28, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Shift Monitor Pro', margin, 11);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(148, 163, 184);
+  doc.text('Attendance Report — ' + monthNames[month - 1] + ' ' + year, margin, 19);
+
+  // Employee name top-right
+  const empName = S.user?.full_name || '';
+  const empCode = S.user?.employee_code || '';
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(empName + (empCode ? ' (' + empCode + ')' : ''), pageW - margin, 11, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Generated: ' + new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}), pageW - margin, 19, { align: 'right' });
+
+  // ── Stats row ─────────────────────────────────────────────────────
+  const statY = 34;
+  const statW = (pageW - margin * 2) / 4;
+  const statItems = [
+    { label: 'TOTAL HOURS',  value: (stats.total_hours || 0) + 'h' },
+    { label: 'DAYS PRESENT', value: String(stats.present || 0) },
+    { label: 'ATTENDANCE',   value: (stats.attendance_pct || 0) + '%' },
+    { label: 'LATE DAYS',    value: String(stats.late || 0) },
+  ];
+
+  statItems.forEach((s, i) => {
+    const x = margin + i * statW;
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(x, statY, statW - 2, 16, 2, 2, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(s.label, x + 4, statY + 5);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(s.value, x + 4, statY + 13);
+  });
+
+  // ── Table ─────────────────────────────────────────────────────────
+  const tableY = statY + 22;
+
+  const tableRows = rows.map(r => {
+    const sessions = (r.sessions || []).map((s, i) => {
+      const inT  = s.clock_in  ? s.clock_in.toString().slice(11,16)  : '—';
+      const outT = s.clock_out ? s.clock_out.toString().slice(11,16) : 'Active';
+      const dur  = s.duration_min ? Math.floor(s.duration_min/60)+'h '+s.duration_min%60+'m' : '—';
+      return '#' + (i+1) + ' ' + inT + ' → ' + outT + ' (' + dur + ')';
+    }).join('\n');
+
+    const totalH = r.total_minutes ? Math.floor(r.total_minutes/60) + 'h ' + (r.total_minutes%60) + 'm' : '0h 0m';
+    const status = (r.status||'').replace('_',' ');
+
+    return [
+      r.work_date ? new Date(r.work_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',weekday:'short'}) : '—',
+      sessions || 'No sessions',
+      totalH,
+      status.charAt(0).toUpperCase() + status.slice(1),
+    ];
+  });
+
+  doc.autoTable({
+    startY: tableY,
+    head: [['Date', 'Sessions', 'Total Hours', 'Status']],
+    body: tableRows,
+    margin: { left: margin, right: margin },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      overflow: 'linebreak',
+      font: 'helvetica',
+      textColor: [226, 232, 240],
+      fillColor: [15, 23, 42],
+      lineColor: [51, 65, 85],
+      lineWidth: 0.3,
+    },
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [148, 163, 184],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: {
+      fillColor: [22, 33, 52],
+    },
+    columnStyles: {
+      0: { cellWidth: 28, fontStyle: 'bold', textColor: [255,255,255] },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 24, halign: 'center', textColor: [52, 211, 153] },
+      3: { cellWidth: 22, halign: 'center' },
+    },
+    didParseCell: (data) => {
+      if (data.column.index === 3 && data.section === 'body') {
+        const val = (data.cell.raw || '').toLowerCase();
+        if (val === 'present')  data.cell.styles.textColor = [52, 211, 153];
+        else if (val === 'late')    data.cell.styles.textColor = [251, 191, 36];
+        else if (val === 'absent')  data.cell.styles.textColor = [248, 113, 113];
+      }
+    },
+  });
+
+  // ── Footer ────────────────────────────────────────────────────────
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Shift Monitor Pro — Confidential', margin, pageH - 6);
+    doc.text('Page ' + i + ' of ' + pageCount, pageW - margin, pageH - 6, { align: 'right' });
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────
+  const fileName = 'Attendance_' + (S.user?.full_name||'employee').replace(/\s+/g,'_') + '_' + monthNames[month-1] + '_' + year + '.pdf';
+  doc.save(fileName);
+  toast('PDF downloaded!', 'success');
+}
+
+// ============================================================
 // EVENTS
 // ============================================================
 function attachEvents() {
@@ -1714,6 +1920,19 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
   };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
+
+  // Attendance page PDF download
+  document.getElementById('att-pdf-btn')?.addEventListener('click', () => {
+    const month = parseInt(document.getElementById('att-pdf-month')?.value) || (nowNST().getMonth()+1);
+    const year  = parseInt(document.getElementById('att-pdf-year')?.value)  || nowNST().getFullYear();
+    generateAttendancePDF(month, year);
+  });
+
+  // Dashboard history card PDF download — defaults to current month
+  document.getElementById('dash-pdf-btn')?.addEventListener('click', () => {
+    const now = nowNST();
+    generateAttendancePDF(now.getMonth() + 1, now.getFullYear());
+  });
   document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
     const cid  = btn.dataset.approve;
     const date = btn.dataset.date;
@@ -2014,7 +2233,7 @@ setInterval(async () => {
 (async () => {
   const ok = await tryRefresh();
   if (ok) {
-    // Start proactive refresh timer so token never expires during session
+    // Start proactive refresh timer so token never expires during the session
     _refreshTimer = setTimeout(tryRefresh, 14 * 60 * 1000);
     const me = await apiGet('/users/me').catch(()=>null);
     if (me) { S.user = me; await loadPage(); }

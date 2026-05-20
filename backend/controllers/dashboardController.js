@@ -274,26 +274,33 @@ async function employeeSummary(res, userId) {
     `SELECT hourly_rate FROM users WHERE id = ?`, [userId]
   );
 
-  // Fetch today's attendance across ALL branches for the "Who's Working Now" widget
-  // Wrapped in subquery so we can ORDER BY the computed current_clock_in alias
+  // Calculate yesterday's Nepal date
+  const yesterdayNP = new Date(Date.now() + NEPAL_OFFSET_MS - 86400000).toISOString().slice(0, 10);
+
+  // Fetch today AND yesterday's attendance across ALL branches.
+  // We take one row per employee (most recent work_date) so yesterday's
+  // record shows when today has no attendance yet.
   const [liveToday] = await db.execute(`
     SELECT * FROM (
       SELECT u.id AS user_id, u.full_name, u.employee_code,
              b.name AS branch_name,
+             a.work_date,
              a.total_minutes, a.status,
              s.name AS shift_name,
              (SELECT cs.clock_in FROM clock_sessions cs
                 WHERE cs.attendance_id = a.id AND cs.clock_out IS NULL
-                ORDER BY cs.clock_in DESC LIMIT 1) AS current_clock_in
+                ORDER BY cs.clock_in DESC LIMIT 1) AS current_clock_in,
+             ROW_NUMBER() OVER (PARTITION BY u.id ORDER BY a.work_date DESC) AS rn
         FROM attendance a
         JOIN users    u ON u.id  = a.user_id
         JOIN branches b ON b.id  = a.branch_id
         LEFT JOIN employee_shifts es ON es.user_id = u.id AND es.effective_to IS NULL
         LEFT JOIN shifts           s ON s.id = es.shift_id
-       WHERE a.work_date = ? AND u.role = 'employee' AND u.is_active = 1
+       WHERE a.work_date IN (?, ?) AND u.role = 'employee' AND u.is_active = 1
     ) t
+    WHERE rn = 1
     ORDER BY current_clock_in IS NULL, current_clock_in DESC, full_name
-  `, [todayNP]);
+  `, [todayNP, yesterdayNP]);
 
   res.json({
     role: 'employee',
