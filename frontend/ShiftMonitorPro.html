@@ -1696,6 +1696,15 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
 
   // Expose globally so the date input onchange can call it
   window._loadCorSessions = loadSessionsForDate;
+
+  // Trigger display logic for the default selected issue type (wrong_time)
+  // immediately after the modal renders — onchange doesn't fire on initial render
+  setTimeout(() => {
+    const sel = document.getElementById('m-ctype');
+    if (sel) sel.dispatchEvent(new Event('change'));
+    // Also load sessions for the default date
+    loadSessionsForDate(document.getElementById('m-cdate')?.value || fmtNSTDate());
+  }, 50);
   };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
