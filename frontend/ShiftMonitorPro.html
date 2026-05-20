@@ -1063,13 +1063,19 @@ function renderAttendance() {
     <div class="stat"><div class="stat-label">Avg Hours/Day</div><div class="stat-value">${ms.avg_minutes?Math.round(ms.avg_minutes/60*10)/10:0}h</div></div>
     <div class="stat"><div class="stat-label">Total Hours (MTD)</div><div class="stat-value">${ms.total_hours||0}h</div></div>
   </div>
+  ${S.data.lastCorrectionAt ? `
+  <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:13px;color:var(--amber)">⚠️ Attendance records were updated by a correction. Data may be stale.</div>
+    <button class="btn btn-sm" id="att-refresh-btn" style="border-color:var(--amber);color:var(--amber)">↻ Refresh</button>
+  </div>` : ''}
   <div class="card">
     <div class="card-header">
       <div><div class="card-title">Records (NST dates)</div></div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center">
         <input class="form-input" type="date" id="att-from" style="width:140px;padding:6px 10px">
         <input class="form-input" type="date" id="att-to"   style="width:140px;padding:6px 10px">
         <button class="btn btn-sm btn-primary" id="att-filter-btn">Filter</button>
+        <button class="btn btn-sm" id="att-refresh-btn" title="Refresh attendance data">↻</button>
       </div>
     </div>
     ${rows.length ? `<div class="table-wrap"><table>
@@ -1801,6 +1807,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       try {
         // 1. Save edits to existing sessions
         const sessionRows = document.querySelectorAll('#m-cor-sessions [data-sid]');
+        let sessionChanged = false;
         for (const row of sessionRows) {
           const sid    = row.dataset.sid;
           const inVal  = row.querySelector('.s-in')?.value;
@@ -1810,6 +1817,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
               clock_in:  inVal.replace('T',' ') + ':00',
               clock_out: outVal ? outVal.replace('T',' ') + ':00' : null,
             });
+            sessionChanged = true;
           }
         }
 
@@ -1837,7 +1845,14 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
         }
 
         toast('Sessions updated and correction approved.', 'success');
+        // Mark attendance as potentially stale so the banner shows if admin goes there
+        S.data.lastCorrectionAt = new Date().toISOString();
+        // Refresh all affected data immediately
         S.data.corrections = await apiGet('/corrections');
+        S.data.attendance  = await apiGet('/attendance?limit=30').catch(() => S.data.attendance);
+        S.data.attStats    = await apiGet('/attendance/stats').catch(() => S.data.attStats);
+        S.data.dashboard   = await apiGet('/dashboard').catch(() => S.data.dashboard);
+        S.data.lastCorrectionAt = null; // clear after refresh
         render();
       } catch(e) { toast(e.message, 'error'); }
     });
@@ -1846,7 +1861,12 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
     setTimeout(renderSessions, 50);
   }));
   document.querySelectorAll('[data-reject]').forEach(btn=>btn.addEventListener('click',async()=>{
-    try { await apiPut('/corrections/'+btn.dataset.reject+'/reject',{}); toast('Rejected','info'); S.data.corrections=await apiGet('/corrections'); render(); } catch(e){toast(e.message,'error');}
+    try {
+      await apiPut('/corrections/'+btn.dataset.reject+'/reject',{});
+      toast('Rejected','info');
+      S.data.corrections = await apiGet('/corrections');
+      render();
+    } catch(e){toast(e.message,'error');}
   }));
 
   document.querySelectorAll('[data-delete-correction]').forEach(btn => btn.addEventListener('click', async () => {
@@ -1858,6 +1878,16 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       render();
     } catch(e) { toast(e.message, 'error'); }
   }));
+
+  // Attendance refresh button
+  document.getElementById('att-refresh-btn')?.addEventListener('click', async () => {
+    S.data.lastCorrectionAt = null;
+    S.data.attendance = await apiGet('/attendance?limit=30').catch(() => S.data.attendance);
+    S.data.attStats   = await apiGet('/attendance/stats').catch(() => S.data.attStats);
+    const c = document.getElementById('content');
+    if (c) { c.innerHTML = renderPage(); attachEvents(); }
+    toast('Attendance data refreshed.', 'success');
+  });
 
   // Attendance filter
   document.getElementById('att-filter-btn')?.addEventListener('click', async () => {
