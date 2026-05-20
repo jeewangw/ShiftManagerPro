@@ -1453,83 +1453,90 @@ async function generateAttendancePDF(month, year) {
   const monthNames = ['January','February','March','April','May','June',
                       'July','August','September','October','November','December'];
 
-  // Fetch full month data for this employee
   const pad = n => String(n).padStart(2,'0');
-  const from = year + '-' + pad(month) + '-01';
+  const from    = year + '-' + pad(month) + '-01';
   const lastDay = new Date(year, month, 0).getDate();
-  const to   = year + '-' + pad(month) + '-' + pad(lastDay);
+  const to      = year + '-' + pad(month) + '-' + pad(lastDay);
 
   toast('Generating PDF…', 'info');
 
-  let rows = [];
-  let stats = {};
+  let rows = [], stats = {}, salaryRec = null;
   try {
-    const att   = await apiGet('/attendance?limit=100&from=' + from + '&to=' + to);
-    const stts  = await apiGet('/attendance/stats?month=' + month + '&year=' + year);
-    rows  = att?.data || [];
-    stats = stts || {};
+    const [att, stts, salData] = await Promise.all([
+      apiGet('/attendance?limit=100&from=' + from + '&to=' + to),
+      apiGet('/attendance/stats?month=' + month + '&year=' + year),
+      apiGet('/salary/my-salary'),
+    ]);
+    rows      = att?.data || [];
+    stats     = stts || {};
+    salaryRec = (salData || []).find(s => s.month === month && s.year === year) || null;
   } catch(e) {
     toast('Failed to fetch data: ' + e.message, 'error');
     return;
   }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  // Day-wise salary: compute per-day pay using salary record's hourly_rate
+  const hourlyRate  = salaryRec ? parseFloat(salaryRec.hourly_rate) : 0;
+  const OT_THRESHOLD_MIN = 360; // 6 hours
 
-  const pageW = doc.internal.pageSize.getWidth();
+  function calcDayPay(totalMins) {
+    if (!hourlyRate || !totalMins) return { reg: 0, ot: 0, total: 0 };
+    const hours = totalMins / 60;
+    if (totalMins > OT_THRESHOLD_MIN) {
+      const regPay = 6 * hourlyRate;
+      const otPay  = (hours - 6) * hourlyRate * 2;
+      return { reg: regPay, ot: otPay, total: regPay + otPay };
+    }
+    return { reg: hours * hourlyRate, ot: 0, total: hours * hourlyRate };
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW  = doc.internal.pageSize.getWidth();
   const margin = 14;
 
-  // ── Header ────────────────────────────────────────────────────────
+  const empName = S.user?.full_name || '';
+  const empCode = S.user?.employee_code || '';
+
+  // ── PAGE 1: ATTENDANCE ────────────────────────────────────────────
+
+  // Header
   doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, pageW, 28, 'F');
-
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('Shift Monitor Pro', margin, 11);
-
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(148, 163, 184);
-  doc.text('Attendance Report — ' + monthNames[month - 1] + ' ' + year, margin, 19);
-
-  // Employee name top-right
-  const empName = S.user?.full_name || '';
-  const empCode = S.user?.employee_code || '';
+  doc.text('Attendance & Salary Report — ' + monthNames[month-1] + ' ' + year, margin, 19);
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.text(empName + (empCode ? ' (' + empCode + ')' : ''), pageW - margin, 11, { align: 'right' });
   doc.setFontSize(9);
   doc.setTextColor(148, 163, 184);
-  doc.text('Generated: ' + new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}), pageW - margin, 19, { align: 'right' });
+  doc.text('Generated: ' + new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}), pageW - margin, 19, { align: 'right' });
 
-  // ── Stats row ─────────────────────────────────────────────────────
+  // Attendance stats
   const statY = 34;
   const statW = (pageW - margin * 2) / 4;
-  const statItems = [
-    { label: 'TOTAL HOURS',  value: (stats.total_hours || 0) + 'h' },
-    { label: 'DAYS PRESENT', value: String(stats.present || 0) },
-    { label: 'ATTENDANCE',   value: (stats.attendance_pct || 0) + '%' },
-    { label: 'LATE DAYS',    value: String(stats.late || 0) },
-  ];
-
-  statItems.forEach((s, i) => {
+  [
+    { label:'TOTAL HOURS',  value:(stats.total_hours||0)+'h'        },
+    { label:'DAYS PRESENT', value:String(stats.present||0)          },
+    { label:'ATTENDANCE',   value:(stats.attendance_pct||0)+'%'     },
+    { label:'LATE DAYS',    value:String(stats.late||0)             },
+  ].forEach((s, i) => {
     const x = margin + i * statW;
     doc.setFillColor(30, 41, 59);
     doc.roundedRect(x, statY, statW - 2, 16, 2, 2, 'F');
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
     doc.text(s.label, x + 4, statY + 5);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
     doc.text(s.value, x + 4, statY + 13);
   });
 
-  // ── Table ─────────────────────────────────────────────────────────
-  const tableY = statY + 22;
-
+  // Attendance + salary table
   const tableRows = rows.map(r => {
     const sessions = (r.sessions || []).map((s, i) => {
       const inT  = s.clock_in  ? s.clock_in.toString().slice(11,16)  : '—';
@@ -1538,70 +1545,141 @@ async function generateAttendancePDF(month, year) {
       return '#' + (i+1) + ' ' + inT + ' → ' + outT + ' (' + dur + ')';
     }).join('\n');
 
-    const totalH = r.total_minutes ? Math.floor(r.total_minutes/60) + 'h ' + (r.total_minutes%60) + 'm' : '0h 0m';
-    const status = (r.status||'').replace('_',' ');
+    const totalMins = r.total_minutes || 0;
+    const totalH    = totalMins ? Math.floor(totalMins/60)+'h '+(totalMins%60)+'m' : '0h 0m';
+    const status    = (r.status||'').replace('_',' ');
+    const pay       = calcDayPay(totalMins);
 
     return [
       r.work_date ? new Date(r.work_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',weekday:'short'}) : '—',
       sessions || 'No sessions',
       totalH,
       status.charAt(0).toUpperCase() + status.slice(1),
+      hourlyRate ? 'NPR ' + pay.total.toFixed(2) + (pay.ot > 0 ? '\n(+OT ' + pay.ot.toFixed(2) + ')' : '') : '—',
     ];
   });
 
   doc.autoTable({
-    startY: tableY,
-    head: [['Date', 'Sessions', 'Total Hours', 'Status']],
+    startY: statY + 22,
+    head: [['Date', 'Sessions', 'Hours', 'Status', 'Day Pay (NPR)']],
     body: tableRows,
     margin: { left: margin, right: margin },
-    styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      overflow: 'linebreak',
-      font: 'helvetica',
-      textColor: [226, 232, 240],
-      fillColor: [15, 23, 42],
-      lineColor: [51, 65, 85],
-      lineWidth: 0.3,
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [148, 163, 184],
-      fontStyle: 'bold',
-      fontSize: 8,
-    },
-    alternateRowStyles: {
-      fillColor: [22, 33, 52],
-    },
+    styles: { fontSize:8, cellPadding:3, overflow:'linebreak', font:'helvetica', textColor:[226,232,240], fillColor:[15,23,42], lineColor:[51,65,85], lineWidth:0.3 },
+    headStyles: { fillColor:[30,41,59], textColor:[148,163,184], fontStyle:'bold', fontSize:8 },
+    alternateRowStyles: { fillColor:[22,33,52] },
     columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold', textColor: [255,255,255] },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 24, halign: 'center', textColor: [52, 211, 153] },
-      3: { cellWidth: 22, halign: 'center' },
+      0: { cellWidth:28, fontStyle:'bold', textColor:[255,255,255] },
+      1: { cellWidth:'auto' },
+      2: { cellWidth:20, halign:'center', textColor:[52,211,153] },
+      3: { cellWidth:20, halign:'center' },
+      4: { cellWidth:30, halign:'right', textColor:[52,211,153] },
     },
     didParseCell: (data) => {
       if (data.column.index === 3 && data.section === 'body') {
-        const val = (data.cell.raw || '').toLowerCase();
-        if (val === 'present')  data.cell.styles.textColor = [52, 211, 153];
-        else if (val === 'late')    data.cell.styles.textColor = [251, 191, 36];
-        else if (val === 'absent')  data.cell.styles.textColor = [248, 113, 113];
+        const v = (data.cell.raw||'').toLowerCase();
+        if (v==='present') data.cell.styles.textColor=[52,211,153];
+        else if (v==='late')   data.cell.styles.textColor=[251,191,36];
+        else if (v==='absent') data.cell.styles.textColor=[248,113,113];
+      }
+      if (data.column.index === 4 && data.section === 'body' && (data.cell.raw||'').includes('OT')) {
+        data.cell.styles.textColor = [251,191,36];
       }
     },
   });
 
-  // ── Footer ────────────────────────────────────────────────────────
+  // ── SALARY SUMMARY SECTION ────────────────────────────────────────
+  const afterTableY = doc.lastAutoTable.finalY + 12;
+
+  // Section header
+  doc.setFillColor(30, 41, 59);
+  doc.rect(margin, afterTableY, pageW - margin*2, 8, 'F');
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(148,163,184);
+  doc.text('SALARY SUMMARY — ' + monthNames[month-1].toUpperCase() + ' ' + year, margin + 4, afterTableY + 5.5);
+
+  if (salaryRec) {
+    const sumY = afterTableY + 12;
+    const colW = (pageW - margin*2) / 3;
+
+    // Row 1: Rate, Regular Hours, OT Hours
+    const row1 = [
+      { label:'HOURLY RATE',    value:'NPR ' + parseFloat(salaryRec.hourly_rate).toFixed(2) },
+      { label:'REGULAR HOURS',  value:(salaryRec.regular_hours||0)+'h' },
+      { label:'OVERTIME HOURS', value:(salaryRec.extra_hours||0)+'h', color:[251,191,36] },
+    ];
+    row1.forEach((item, i) => {
+      const x = margin + i * colW;
+      doc.setFillColor(22,33,52); doc.roundedRect(x, sumY, colW-3, 16, 2, 2, 'F');
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+      doc.text(item.label, x+4, sumY+5);
+      doc.setFontSize(11); doc.setFont('helvetica','bold');
+      doc.setTextColor(...(item.color || [255,255,255]));
+      doc.text(item.value, x+4, sumY+13);
+    });
+
+    // Row 2: Base Pay, OT Bonus, Total Pay
+    const row2Y = sumY + 20;
+    const totalPay = parseFloat(salaryRec.base_salary||0);
+    const basePay  = totalPay - parseFloat(salaryRec.extra_pay||0);
+    const otBonus  = parseFloat(salaryRec.extra_pay||0);
+    const row2 = [
+      { label:'BASE PAY',  value:'NPR ' + basePay.toFixed(2) },
+      { label:'OT BONUS',  value:'+NPR ' + otBonus.toFixed(2), color:[251,191,36] },
+      { label:'TOTAL PAY', value:'NPR ' + totalPay.toFixed(2), color:[52,211,153] },
+    ];
+    row2.forEach((item, i) => {
+      const x = margin + i * colW;
+      const bg = i===2 ? [16,50,30] : [22,33,52];
+      doc.setFillColor(...bg); doc.roundedRect(x, row2Y, colW-3, 16, 2, 2, 'F');
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+      doc.text(item.label, x+4, row2Y+5);
+      doc.setFontSize(11); doc.setFont('helvetica','bold');
+      doc.setTextColor(...(item.color || [255,255,255]));
+      doc.text(item.value, x+4, row2Y+13);
+    });
+
+    // Status + computed date
+    const noteY = row2Y + 20;
+    const statusLabel = salaryRec.status === 'paid_out' ? '✓ Paid Out'
+      : salaryRec.status === 'processing' ? '⟳ Processing' : '— Not Processed';
+    const statusColor = salaryRec.status === 'paid_out' ? [52,211,153]
+      : salaryRec.status === 'processing' ? [251,191,36] : [100,116,139];
+    doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.setTextColor(...statusColor);
+    doc.text('Payment Status: ' + statusLabel, margin, noteY);
+    if (salaryRec.computed_up_to) {
+      doc.setTextColor(100,116,139); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+      doc.text('Computed up to: ' + salaryRec.computed_up_to.toString().slice(0,10), margin, noteY + 6);
+    }
+  } else {
+    // No salary record
+    const noteY = afterTableY + 16;
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+    doc.text('No salary record computed for this month yet.', margin, noteY);
+    if (hourlyRate) {
+      // Estimate from attendance data
+      let totalPay = 0, totalMins = 0;
+      rows.forEach(r => {
+        const m = r.total_minutes || 0;
+        totalMins += m;
+        totalPay  += calcDayPay(m).total;
+      });
+      doc.setFontSize(8);
+      doc.text('Estimated from attendance: ' + Math.round(totalMins/60*100)/100 + 'h @ NPR ' + hourlyRate + '/hr = NPR ' + totalPay.toFixed(2) + ' (estimate only)', margin, noteY + 7);
+    }
+  }
+
+  // ── FOOTER on all pages ───────────────────────────────────────────
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     const pageH = doc.internal.pageSize.getHeight();
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(8); doc.setTextColor(100,116,139);
     doc.text('Shift Monitor Pro — Confidential', margin, pageH - 6);
-    doc.text('Page ' + i + ' of ' + pageCount, pageW - margin, pageH - 6, { align: 'right' });
+    doc.text('Page ' + i + ' of ' + pageCount, pageW - margin, pageH - 6, { align:'right' });
   }
 
   // ── Save ──────────────────────────────────────────────────────────
-  const fileName = 'Attendance_' + (S.user?.full_name||'employee').replace(/\s+/g,'_') + '_' + monthNames[month-1] + '_' + year + '.pdf';
+  const fileName = 'Report_' + (S.user?.full_name||'employee').replace(/\s+/g,'_') + '_' + monthNames[month-1] + '_' + year + '.pdf';
   doc.save(fileName);
   toast('PDF downloaded!', 'success');
 }
