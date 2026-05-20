@@ -341,15 +341,6 @@ async function nav(page) {
     const scrollY = (samePageRefresh && scroller) ? scroller.scrollTop : 0;
     existing.innerHTML = renderPage();
     if (scroller) scroller.scrollTop = scrollY;
-    // Sync nav active state
-    document.querySelectorAll('.nav-item[data-nav]').forEach(el => {
-      el.classList.toggle('active', el.dataset.nav === S.page);
-    });
-    document.querySelectorAll('.mob-nav-item[data-nav]').forEach(el => {
-      el.classList.toggle('active', el.dataset.nav === S.page);
-    });
-    const titleEl = document.querySelector('.page-title');
-    if (titleEl) titleEl.textContent = getPageTitle();
     attachEvents();
   } else {
     render();
@@ -458,16 +449,6 @@ function render() {
     existing.innerHTML = renderPage();
     // Restore scroll position after DOM update
     if (scroller) scroller.scrollTop = scrollY;
-    // Update active state on sidebar and mobile nav without full re-render
-    document.querySelectorAll('.nav-item[data-nav]').forEach(el => {
-      el.classList.toggle('active', el.dataset.nav === S.page);
-    });
-    document.querySelectorAll('.mob-nav-item[data-nav]').forEach(el => {
-      el.classList.toggle('active', el.dataset.nav === S.page);
-    });
-    // Update page title in topbar
-    const titleEl = document.querySelector('.page-title');
-    if (titleEl) titleEl.textContent = getPageTitle();
     attachEvents();
   } else {
     // First render — build the full shell
