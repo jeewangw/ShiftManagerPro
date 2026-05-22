@@ -1891,7 +1891,7 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
         const inLabel     = document.getElementById('m-c-inlabel');
         if (t === 'wrong_time') {
           timeFields.style.display='block'; inField.style.display='block';
-          outField.style.display='block'; descField.style.display='none';
+          outField.style.display='block'; descField.style.display='block';
           sessionWrap.style.display='block';
           inLabel.textContent='CORRECT CLOCK IN TIME (NST)';
         } else {
@@ -1930,10 +1930,10 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       </div>
     </div>
 
-    <!-- TEXT DESCRIPTION -->
+    <!-- TEXT DESCRIPTION — always shown for technical_error, also shown for wrong_time -->
     <div id="m-c-descfield" class="form-group" style="display:none">
-      <label class="form-label">DESCRIPTION</label>
-      <textarea class="form-input" id="m-cdesc" placeholder="Describe the issue…" rows="3"></textarea>
+      <label class="form-label">ADDITIONAL NOTES (OPTIONAL)</label>
+      <textarea class="form-input" id="m-cdesc" placeholder="Explain what happened, e.g. system glitch, forgot to clock out, etc…" rows="3"></textarea>
     </div>
 
     <div style="font-size:11px;color:var(--text3);margin-top:4px">
@@ -1954,6 +1954,8 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
       if (clockOut) parts.push('Requested clock-out: ' + clockOut.replace('T',' '));
       if (!parts.length) { toast('Please enter at least one time value.','error'); return; }
       description = parts.join(' | ');
+      // Append any additional notes the employee wrote
+      if (freeText.trim()) description += ' | Note: ' + freeText.trim();
     } else {
       if (!freeText.trim()) { toast('Please enter a description.','error'); return; }
     }
