@@ -56,7 +56,8 @@ app.use('/api/attendance',  require('./routes/attendance'));
 app.use('/api/corrections', require('./routes/corrections'));
 app.use('/api/shifts',      require('./routes/shifts'));
 app.use('/api/dashboard',   require('./routes/dashboard'));
-app.use('/api/salary',      require('./routes/salary'));
+app.use('/api/salary',         require('./routes/salary'));
+app.use('/api/announcements',  require('./routes/announcements'));
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', ts: new Date() }));

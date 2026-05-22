@@ -370,7 +370,10 @@ async function loadPage() {
                           (!S.data.branches  && r === 'super_admin'); // first load only
     if (needsBranches) S.data.branches = await apiGet('/branches');
 
-    if (p==='dashboard')   S.data.dashboard   = await apiGet('/dashboard');
+    if (p==='dashboard') {
+      S.data.dashboard      = await apiGet('/dashboard');
+      S.data.announcements  = await apiGet('/announcements').catch(() => []);
+    }
     if (p==='live')        S.data.live        = await apiGet('/attendance/today');
     if (p==='employees')   S.data.employees   = await apiGet('/users');
     if (p==='attendance')  { S.data.attendance = await apiGet('/attendance?limit=30'); S.data.attStats = await apiGet('/attendance/stats'); }
@@ -379,7 +382,12 @@ async function loadPage() {
         ? await apiGet('/salary/my-salary')
         : await apiGet('/salary');
     }
-    if (p==='corrections') S.data.corrections = await apiGet('/corrections');
+    if (p==='corrections')   S.data.corrections   = await apiGet('/corrections');
+    if (p==='announcements') {
+      S.data.announcements = await apiGet('/announcements/manage').catch(()=>[]);
+      if (!S.data.branches && S.user?.role === 'super_admin')
+        S.data.branches = await apiGet('/branches').catch(()=>[]);
+    }
     if (p==='settings')    S.data.shifts      = await apiGet('/shifts');
     if (p==='profile')     S.data.me          = await apiGet('/users/me');
   } catch(e) {
@@ -582,13 +590,13 @@ function getNav(role) {
     {label:'OVERVIEW', items:[{id:'dashboard',icon:'📊',text:'Dashboard'},{id:'live',icon:'📡',text:'Live Monitor'}]},
     {label:'MANAGEMENT', items:[{id:'branches',icon:'🏢',text:'Branches'},{id:'employees',icon:'👥',text:'Employees'},{id:'attendance',icon:'🗓',text:'Attendance'}]},
     {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'Salary'}]},
-    {label:'SYSTEM', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Settings'}]},
+    {label:'SYSTEM', items:[{id:'announcements',icon:'📢',text:'Announcements'},{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Settings'}]},
   ];
   if (role==='branch_admin') return [
     {label:'OVERVIEW', items:[{id:'dashboard',icon:'📊',text:'My Dashboard'},{id:'live',icon:'📡',text:'Live Monitor'}]},
     {label:'MY BRANCH', items:[{id:'employees',icon:'👥',text:'Employees'},{id:'attendance',icon:'🗓',text:'Attendance'}]},
     {label:'FINANCE', items:[{id:'salary',icon:'💰',text:'Salary'}]},
-    {label:'ADMIN', items:[{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Shift Settings'}]},
+    {label:'ADMIN', items:[{id:'announcements',icon:'📢',text:'Announcements'},{id:'corrections',icon:'✏️',text:'Corrections'},{id:'settings',icon:'⚙️',text:'Shift Settings'}]},
   ];
   return [
     {label:'MY SHIFT', items:[{id:'dashboard',icon:'⏱',text:'Clock In / Out'},{id:'attendance',icon:'🗓',text:'My Attendance'}]},
@@ -598,7 +606,7 @@ function getNav(role) {
 }
 function getPageTitle() {
   return {dashboard:'Dashboard',live:'Live Monitor',branches:'Branch Management',employees:'Employees',
-          attendance:'Attendance',salary:'Salary (NPR)',corrections:'Corrections',settings:'Settings',profile:'My Profile'}[S.page]||'Dashboard';
+          attendance:'Attendance',salary:'Salary (NPR)',corrections:'Corrections',announcements:'Announcements',settings:'Settings',profile:'My Profile'}[S.page]||'Dashboard';
 }
 
 function renderPage() {
@@ -609,7 +617,8 @@ function renderPage() {
   if (p==='employees')   return renderEmployees();
   if (p==='attendance')  return renderAttendance();
   if (p==='salary')      return renderSalary();
-  if (p==='corrections') return renderCorrections();
+  if (p==='corrections')   return renderCorrections();
+  if (p==='announcements') return renderAnnouncements();
   if (p==='settings')    return renderSettings();
   if (p==='profile')     return renderProfile();
   return '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Page not found</div></div>';
@@ -758,7 +767,37 @@ function renderEmployeeDash() {
   // Live monitor data — colleagues clocked in right now
   const liveTeam = (d.live_today || []).filter(e => e.user_id !== (S.user?.id));
 
+  // Announcements
+  const announcements = (S.data.announcements || []);
+
   return `
+  ${announcements.length ? `
+  <div style="margin-bottom:16px">
+    ${announcements.map(a => {
+      const colors = {
+        urgent:    { bg:'rgba(239,68,68,.12)',    border:'rgba(239,68,68,.35)',    icon:'🚨', label:'URGENT',    text:'#f87171' },
+        important: { bg:'rgba(245,158,11,.1)',    border:'rgba(245,158,11,.3)',    icon:'📢', label:'IMPORTANT', text:'var(--amber)' },
+        normal:    { bg:'rgba(59,130,246,.08)',   border:'rgba(59,130,246,.2)',    icon:'📌', label:'NOTICE',    text:'var(--accent2)' },
+      };
+      const c = colors[a.priority] || colors.normal;
+      return '<div style="background:'+c.bg+';border:1px solid '+c.border+';border-radius:10px;padding:12px 16px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:flex-start;gap:10px">' +
+          '<span style="font-size:18px;flex-shrink:0;margin-top:1px">'+c.icon+'</span>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+              '<span style="font-size:10px;font-weight:700;color:'+c.text+';letter-spacing:.08em">'+c.label+'</span>' +
+              '<span style="font-size:13px;font-weight:600;color:var(--text1)">'+a.title+'</span>' +
+            '</div>' +
+            '<div style="font-size:13px;color:var(--text2);line-height:1.5">'+a.body+'</div>' +
+            '<div style="font-size:10px;color:var(--text3);margin-top:6px">' +
+              (a.branch_name ? '📍 '+a.branch_name+' · ' : '🌐 All Branches · ') +
+              new Date(a.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('')}
+  </div>` : ''}
   <div class="grid grid-2" style="gap:20px">
 
     <!-- ── LEFT COLUMN ─────────────────────────────────── -->
@@ -1310,6 +1349,54 @@ function renderAdminSalaryTable(grouped) {
 // ============================================================
 // CORRECTIONS
 // ============================================================
+function renderAnnouncements() {
+  const rows   = S.data.announcements || [];
+  const isSuper = S.user?.role === 'super_admin';
+  const branches = S.data.branches || [];
+
+  const priorityColors = {
+    urgent:    { bg:'rgba(239,68,68,.12)',  border:'rgba(239,68,68,.3)',  text:'#f87171',          label:'🚨 Urgent'    },
+    important: { bg:'rgba(245,158,11,.1)',  border:'rgba(245,158,11,.3)', text:'var(--amber)',      label:'📢 Important' },
+    normal:    { bg:'rgba(59,130,246,.08)', border:'rgba(59,130,246,.2)', text:'var(--accent2)',    label:'📌 Normal'    },
+  };
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="font-size:13px;color:var(--text3)">${rows.length} announcement${rows.length!==1?'s':''}</div>
+    <button class="btn btn-primary" id="new-ann-btn">+ New Announcement</button>
+  </div>
+
+  <div class="card">
+    ${rows.length ? rows.map(a => {
+      const c = priorityColors[a.priority] || priorityColors.normal;
+      const isExpired = a.expires_at && new Date(a.expires_at) < new Date();
+      return '<div style="border-bottom:1px solid var(--border);padding:14px 0;' + (!a.is_active || isExpired ? 'opacity:.5' : '') + '">' +
+        '<div style="display:flex;align-items:flex-start;gap:12px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">' +
+              '<span style="font-size:11px;font-weight:700;color:'+c.text+';background:'+c.bg+';border:1px solid '+c.border+';border-radius:20px;padding:2px 8px">'+c.label+'</span>' +
+              '<span style="font-size:14px;font-weight:600;color:var(--text1)">'+a.title+'</span>' +
+              (!a.is_active ? '<span style="font-size:10px;color:var(--text3);background:var(--surface2);border-radius:10px;padding:2px 7px">Inactive</span>' : '') +
+              (isExpired    ? '<span style="font-size:10px;color:#f87171;background:rgba(239,68,68,.1);border-radius:10px;padding:2px 7px">Expired</span>' : '') +
+            '</div>' +
+            '<div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:8px">'+a.body+'</div>' +
+            '<div style="font-size:11px;color:var(--text3);display:flex;gap:12px;flex-wrap:wrap">' +
+              '<span>' + (a.branch_name ? '📍 '+a.branch_name : '🌐 All Branches') + '</span>' +
+              '<span>By '+a.created_by_name+'</span>' +
+              '<span>'+new Date(a.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+'</span>' +
+              (a.expires_at ? '<span>Expires: '+new Date(a.expires_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+'</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-shrink:0">' +
+            '<button class="btn btn-sm" data-edit-ann="'+a.id+'">Edit</button>' +
+            '<button class="btn btn-sm btn-danger" data-del-ann="'+a.id+'">Del</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('') : '<div class="empty"><div class="empty-icon">📢</div><div class="empty-text">No announcements yet</div></div>'}
+  </div>`;
+}
+
 function renderCorrections() {
   const rows = S.data.corrections||[];
   const isAdmin = S.user.role !== 'employee';
@@ -1989,6 +2076,98 @@ document.getElementById('compute-salary-btn')?.addEventListener('click', async (
   };
   document.getElementById('req-correction-btn')?.addEventListener('click', openCorrectionModal);
   document.getElementById('new-correction-btn')?.addEventListener('click', openCorrectionModal);
+
+  // ── Announcements ─────────────────────────────────────────────────
+  const openAnnModal = (ann) => {
+    const isEdit = !!ann;
+    const branches = S.data.branches || [];
+    const isSuper  = S.user?.role === 'super_admin';
+    openModal(isEdit ? 'Edit Announcement' : 'New Announcement', `
+      <div class="form-group">
+        <label class="form-label">TITLE</label>
+        <input class="form-input" id="m-ann-title" value="${isEdit ? ann.title.replace(/"/g,'&quot;') : ''}" placeholder="e.g. Public holiday notice">
+      </div>
+      <div class="form-group">
+        <label class="form-label">MESSAGE</label>
+        <textarea class="form-input" id="m-ann-body" rows="4" placeholder="Write your announcement here…">${isEdit ? ann.body : ''}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="form-label">PRIORITY</label>
+          <select class="form-input" id="m-ann-priority">
+            <option value="normal"    ${(!isEdit||ann.priority==='normal')   ?'selected':''}>📌 Normal</option>
+            <option value="important" ${isEdit&&ann.priority==='important'   ?'selected':''}>📢 Important</option>
+            <option value="urgent"    ${isEdit&&ann.priority==='urgent'      ?'selected':''}>🚨 Urgent</option>
+          </select>
+        </div>
+        ${isSuper ? `
+        <div class="form-group">
+          <label class="form-label">TARGET BRANCH</label>
+          <select class="form-input" id="m-ann-branch">
+            <option value="">🌐 All Branches</option>
+            ${branches.map(b=>'<option value="'+b.id+'"'+(isEdit&&ann.branch_id==b.id?' selected':'')+'>'+b.name+'</option>').join('')}
+          </select>
+        </div>` : '<div></div>'}
+      </div>
+      <div class="form-group">
+        <label class="form-label">EXPIRES ON (OPTIONAL)</label>
+        <input class="form-input" type="datetime-local" id="m-ann-expires"
+          value="${isEdit && ann.expires_at ? ann.expires_at.toString().slice(0,16).replace(' ','T') : ''}">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Leave blank to never expire</div>
+      </div>
+      ${isEdit ? `
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="m-ann-active" ${ann.is_active?'checked':''} style="width:16px;height:16px;accent-color:var(--accent2)">
+          <span style="font-size:13px;color:var(--text1)">Active (visible to employees)</span>
+        </label>
+      </div>` : ''}
+    `, isEdit ? 'Save Changes' : 'Post Announcement', async () => {
+      const title    = document.getElementById('m-ann-title')?.value?.trim();
+      const body     = document.getElementById('m-ann-body')?.value?.trim();
+      const priority = document.getElementById('m-ann-priority')?.value;
+      const branch_id = document.getElementById('m-ann-branch')?.value || null;
+      const expires  = document.getElementById('m-ann-expires')?.value;
+      const is_active = document.getElementById('m-ann-active')?.checked ?? true;
+
+      if (!title) { toast('Title is required.','error'); return; }
+      if (!body)  { toast('Message is required.','error'); return; }
+
+      const payload = {
+        title, body, priority,
+        branch_id: branch_id ? parseInt(branch_id) : null,
+        expires_at: expires ? expires.replace('T',' ') + ':00' : null,
+        ...(isEdit ? { is_active } : {}),
+      };
+
+      try {
+        if (isEdit) await apiPut('/announcements/' + ann.id, payload);
+        else        await apiPost('/announcements', payload);
+        toast(isEdit ? 'Announcement updated.' : 'Announcement posted!', 'success');
+        S.data.announcements = await apiGet('/announcements/manage').catch(()=>[]);
+        render();
+      } catch(e) { toast(e.message,'error'); }
+    });
+  };
+
+  document.getElementById('new-ann-btn')?.addEventListener('click', () => openAnnModal(null));
+
+  document.querySelectorAll('[data-edit-ann]').forEach(btn => btn.addEventListener('click', () => {
+    const id  = parseInt(btn.dataset.editAnn);
+    const ann = (S.data.announcements || []).find(a => a.id === id);
+    if (ann) openAnnModal(ann);
+    else toast('Announcement not found.', 'error');
+  }));
+
+  document.querySelectorAll('[data-del-ann]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('Delete this announcement?')) return;
+    try {
+      await apiDelete('/announcements/' + btn.dataset.delAnn);
+      toast('Announcement deleted.','success');
+      S.data.announcements = await apiGet('/announcements/manage').catch(()=>[]);
+      render();
+    } catch(e) { toast(e.message,'error'); }
+  }));
 
   // Attendance page PDF download
   document.getElementById('att-pdf-btn')?.addEventListener('click', () => {
